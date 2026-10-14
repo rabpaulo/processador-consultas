@@ -1,0 +1,418 @@
+{
+  "schema": {
+    "Categoria": [
+      "idCategoria",
+      "Descricao"
+    ],
+    "Produto": [
+      "idProduto",
+      "Nome",
+      "Descricao",
+      "Preco",
+      "QuantEstoque",
+      "Categoria_idCategoria"
+    ],
+    "TipoCliente": [
+      "idTipoCliente",
+      "Descricao"
+    ],
+    "Cliente": [
+      "idCliente",
+      "Nome",
+      "Email",
+      "Nascimento",
+      "Senha",
+      "TipoCliente_idTipoCliente",
+      "DataRegistro"
+    ],
+    "TipoEndereco": [
+      "idTipoEndereco",
+      "Descricao"
+    ],
+    "Endereco": [
+      "idEndereco",
+      "EnderecoPadrao",
+      "Logradouro",
+      "Numero",
+      "Complemento",
+      "Bairro",
+      "Cidade",
+      "UF",
+      "CEP",
+      "TipoEndereco_idTipoEndereco",
+      "Cliente_idCliente"
+    ],
+    "Telefone": [
+      "Numero",
+      "Cliente_idCliente"
+    ],
+    "Status": [
+      "idStatus",
+      "Descricao"
+    ],
+    "Pedido": [
+      "idPedido",
+      "Status_idStatus",
+      "DataPedido",
+      "ValorTotalPedido",
+      "Cliente_idCliente"
+    ],
+    "Pedido_has_Produto": [
+      "idPedidoProduto",
+      "Pedido_idPedido",
+      "Produto_idProduto",
+      "Quantidade",
+      "PrecoUnitario"
+    ]
+  },
+  "sampleData": {
+    "Categoria": [
+      {
+        "idCategoria": 1,
+        "Descricao": "Informática"
+      },
+      {
+        "idCategoria": 2,
+        "Descricao": "Escritório"
+      },
+      {
+        "idCategoria": 3,
+        "Descricao": "Áudio"
+      }
+    ],
+    "Produto": [
+      {
+        "idProduto": 1,
+        "Nome": "Notebook",
+        "Descricao": "Notebook 14 polegadas",
+        "Preco": 3500,
+        "QuantEstoque": 12,
+        "Categoria_idCategoria": 1
+      },
+      {
+        "idProduto": 2,
+        "Nome": "Mouse",
+        "Descricao": "Mouse sem fio",
+        "Preco": 89.9,
+        "QuantEstoque": 60,
+        "Categoria_idCategoria": 1
+      },
+      {
+        "idProduto": 3,
+        "Nome": "Teclado",
+        "Descricao": "Teclado mecânico",
+        "Preco": 249,
+        "QuantEstoque": 25,
+        "Categoria_idCategoria": 1
+      },
+      {
+        "idProduto": 4,
+        "Nome": "Caderno",
+        "Descricao": null,
+        "Preco": 25,
+        "QuantEstoque": 100,
+        "Categoria_idCategoria": 2
+      },
+      {
+        "idProduto": 5,
+        "Nome": "Fone",
+        "Descricao": "Fone bluetooth",
+        "Preco": 199,
+        "QuantEstoque": 30,
+        "Categoria_idCategoria": 3
+      },
+      {
+        "idProduto": 6,
+        "Nome": "Monitor",
+        "Descricao": "Monitor 24 polegadas",
+        "Preco": 950,
+        "QuantEstoque": 15,
+        "Categoria_idCategoria": 1
+      },
+      {
+        "idProduto": 7,
+        "Nome": "Caneta",
+        "Descricao": "Caneta azul",
+        "Preco": 5,
+        "QuantEstoque": 200,
+        "Categoria_idCategoria": 2
+      },
+      {
+        "idProduto": 8,
+        "Nome": "Caixa de som",
+        "Descricao": "Caixa portátil",
+        "Preco": 320,
+        "QuantEstoque": 18,
+        "Categoria_idCategoria": 3
+      }
+    ],
+    "TipoCliente": [
+      {
+        "idTipoCliente": 1,
+        "Descricao": "Pessoa física"
+      },
+      {
+        "idTipoCliente": 2,
+        "Descricao": "Pessoa jurídica"
+      }
+    ],
+    "Cliente": [
+      {
+        "idCliente": 1,
+        "Nome": "Ana",
+        "Email": "ana@example.com",
+        "Nascimento": "1997-04-12",
+        "Senha": "demo-ana",
+        "TipoCliente_idTipoCliente": 1,
+        "DataRegistro": "2026-01-10"
+      },
+      {
+        "idCliente": 2,
+        "Nome": "Bruno",
+        "Email": "bruno@example.com",
+        "Nascimento": "1992-08-21",
+        "Senha": "demo-bruno",
+        "TipoCliente_idTipoCliente": 1,
+        "DataRegistro": "2026-02-15"
+      },
+      {
+        "idCliente": 3,
+        "Nome": "Carla",
+        "Email": "carla@example.com",
+        "Nascimento": "1988-03-05",
+        "Senha": "demo-carla",
+        "TipoCliente_idTipoCliente": 1,
+        "DataRegistro": "2026-03-20"
+      },
+      {
+        "idCliente": 4,
+        "Nome": "Delta Ltda",
+        "Email": "delta@example.com",
+        "Nascimento": null,
+        "Senha": "demo-delta",
+        "TipoCliente_idTipoCliente": 2,
+        "DataRegistro": "2026-04-01"
+      }
+    ],
+    "TipoEndereco": [
+      {
+        "idTipoEndereco": 1,
+        "Descricao": "Residencial"
+      },
+      {
+        "idTipoEndereco": 2,
+        "Descricao": "Comercial"
+      }
+    ],
+    "Endereco": [
+      {
+        "idEndereco": 1,
+        "EnderecoPadrao": 1,
+        "Logradouro": "Rua das Flores",
+        "Numero": "100",
+        "Complemento": null,
+        "Bairro": "Centro",
+        "Cidade": "Fortaleza",
+        "UF": "CE",
+        "CEP": "60000001",
+        "TipoEndereco_idTipoEndereco": 1,
+        "Cliente_idCliente": 1
+      },
+      {
+        "idEndereco": 2,
+        "EnderecoPadrao": 1,
+        "Logradouro": "Av. Beira Mar",
+        "Numero": "200",
+        "Complemento": "Apto 12",
+        "Bairro": "Meireles",
+        "Cidade": "Fortaleza",
+        "UF": "CE",
+        "CEP": "60165001",
+        "TipoEndereco_idTipoEndereco": 1,
+        "Cliente_idCliente": 2
+      },
+      {
+        "idEndereco": 3,
+        "EnderecoPadrao": 1,
+        "Logradouro": "Rua do Sol",
+        "Numero": "30",
+        "Complemento": null,
+        "Bairro": "Centro",
+        "Cidade": "Recife",
+        "UF": "PE",
+        "CEP": "50000001",
+        "TipoEndereco_idTipoEndereco": 1,
+        "Cliente_idCliente": 3
+      },
+      {
+        "idEndereco": 4,
+        "EnderecoPadrao": 1,
+        "Logradouro": "Av. Central",
+        "Numero": "400",
+        "Complemento": "Sala 5",
+        "Bairro": "Centro",
+        "Cidade": "Fortaleza",
+        "UF": "CE",
+        "CEP": "60000002",
+        "TipoEndereco_idTipoEndereco": 2,
+        "Cliente_idCliente": 4
+      }
+    ],
+    "Telefone": [
+      {
+        "Numero": "85990000001",
+        "Cliente_idCliente": 1
+      },
+      {
+        "Numero": "85990000002",
+        "Cliente_idCliente": 2
+      },
+      {
+        "Numero": "81990000003",
+        "Cliente_idCliente": 3
+      },
+      {
+        "Numero": "8530000004",
+        "Cliente_idCliente": 4
+      }
+    ],
+    "Status": [
+      {
+        "idStatus": 1,
+        "Descricao": "Pendente"
+      },
+      {
+        "idStatus": 2,
+        "Descricao": "Pago"
+      },
+      {
+        "idStatus": 3,
+        "Descricao": "Entregue"
+      }
+    ],
+    "Pedido": [
+      {
+        "idPedido": 1,
+        "Status_idStatus": 3,
+        "DataPedido": "2026-09-01",
+        "ValorTotalPedido": 3589.9,
+        "Cliente_idCliente": 1
+      },
+      {
+        "idPedido": 2,
+        "Status_idStatus": 2,
+        "DataPedido": "2026-09-05",
+        "ValorTotalPedido": 249,
+        "Cliente_idCliente": 2
+      },
+      {
+        "idPedido": 3,
+        "Status_idStatus": 1,
+        "DataPedido": "2026-09-10",
+        "ValorTotalPedido": 50,
+        "Cliente_idCliente": 3
+      },
+      {
+        "idPedido": 4,
+        "Status_idStatus": 2,
+        "DataPedido": "2026-09-15",
+        "ValorTotalPedido": 1150,
+        "Cliente_idCliente": 4
+      },
+      {
+        "idPedido": 5,
+        "Status_idStatus": 3,
+        "DataPedido": "2026-09-20",
+        "ValorTotalPedido": 199,
+        "Cliente_idCliente": 1
+      },
+      {
+        "idPedido": 6,
+        "Status_idStatus": 1,
+        "DataPedido": "2026-10-01",
+        "ValorTotalPedido": 640,
+        "Cliente_idCliente": 2
+      }
+    ],
+    "Pedido_has_Produto": [
+      {
+        "idPedidoProduto": 1,
+        "Pedido_idPedido": 1,
+        "Produto_idProduto": 1,
+        "Quantidade": 1,
+        "PrecoUnitario": 3500
+      },
+      {
+        "idPedidoProduto": 2,
+        "Pedido_idPedido": 1,
+        "Produto_idProduto": 2,
+        "Quantidade": 1,
+        "PrecoUnitario": 89.9
+      },
+      {
+        "idPedidoProduto": 3,
+        "Pedido_idPedido": 2,
+        "Produto_idProduto": 3,
+        "Quantidade": 1,
+        "PrecoUnitario": 249
+      },
+      {
+        "idPedidoProduto": 4,
+        "Pedido_idPedido": 3,
+        "Produto_idProduto": 4,
+        "Quantidade": 2,
+        "PrecoUnitario": 25
+      },
+      {
+        "idPedidoProduto": 5,
+        "Pedido_idPedido": 4,
+        "Produto_idProduto": 6,
+        "Quantidade": 1,
+        "PrecoUnitario": 950
+      },
+      {
+        "idPedidoProduto": 6,
+        "Pedido_idPedido": 4,
+        "Produto_idProduto": 7,
+        "Quantidade": 40,
+        "PrecoUnitario": 5
+      },
+      {
+        "idPedidoProduto": 7,
+        "Pedido_idPedido": 5,
+        "Produto_idProduto": 5,
+        "Quantidade": 1,
+        "PrecoUnitario": 199
+      },
+      {
+        "idPedidoProduto": 8,
+        "Pedido_idPedido": 6,
+        "Produto_idProduto": 8,
+        "Quantidade": 2,
+        "PrecoUnitario": 320
+      }
+    ]
+  },
+  "examples": [
+    {
+      "name": "Produtos por preço",
+      "sql": "SELECT Nome, Preco\nFROM Produto\nWHERE Preco > 200 AND QuantEstoque >= 15;"
+    },
+    {
+      "name": "Produtos e categorias",
+      "sql": "SELECT p.Nome, p.Preco, c.Descricao\nFROM Produto AS p\nINNER JOIN Categoria AS c ON p.Categoria_idCategoria = c.idCategoria\nWHERE p.Preco > 200 AND c.Descricao = 'Informática';"
+    },
+    {
+      "name": "Pedidos por cliente",
+      "sql": "SELECT c.Nome, p.idPedido, p.ValorTotalPedido, s.Descricao\nFROM Cliente AS c\nINNER JOIN Pedido AS p ON c.idCliente = p.Cliente_idCliente\nINNER JOIN Status AS s ON p.Status_idStatus = s.idStatus\nWHERE p.ValorTotalPedido >= 500 AND s.idStatus = 2;"
+    },
+    {
+      "name": "Junção no WHERE",
+      "sql": "SELECT p.Nome, c.Descricao\nFROM Produto AS p, Categoria AS c\nWHERE (p.Categoria_idCategoria = c.idCategoria AND p.Preco < 300);"
+    },
+    {
+      "name": "Campo inválido",
+      "sql": "SELECT Nome, Valor\nFROM Produto\nWHERE Preco > 100;"
+    }
+  ]
+}
