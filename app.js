@@ -375,6 +375,8 @@ async function initialize() {
     const countElem = $('#catalog-count');
     if (countElem) countElem.textContent = Object.keys(schema).length;
 
+    $('#run').disabled = false;
+
     // Carrega o segundo exemplo (Produtos e categorias) por padrão
     if (examples[1]) {
       $('#sql').value = examples[1].sql;
