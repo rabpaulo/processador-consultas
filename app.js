@@ -23,11 +23,27 @@ $('#panel').addEventListener('click', event => {
   selectTable(selectedTable === table ? null : table);
 });
 
+// Acessibilidade por teclado nos cards do esquema (Enter ou Espaço)
+$('#panel').addEventListener('keydown', event => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    const card = event.target.closest('.schema-card');
+    if (card) {
+      event.preventDefault();
+      const table = card.id.replace('schema-', '');
+      selectTable(selectedTable === table ? null : table);
+    }
+  }
+});
+
 function selectTable(table) {
   selectedTable = table;
   document.querySelectorAll('#table-nav button').forEach(btn => {
     const isCurrent = btn.dataset.table === selectedTable;
-    btn.setAttribute('aria-current', isCurrent ? 'true' : 'false');
+    if (isCurrent) {
+      btn.setAttribute('aria-current', 'true');
+    } else {
+      btn.removeAttribute('aria-current');
+    }
     btn.classList.toggle('selected', isCurrent);
   });
   if (selectedTable) {
@@ -58,6 +74,7 @@ async function requestJson(url, options = {}) {
 }
 
 async function run() {
+  if ($('#run').disabled) return;
   const request = ++requestSequence;
   const sql = $('#sql').value;
 
@@ -108,6 +125,7 @@ async function run() {
       const column = error.column ?? (before.length - before.lastIndexOf('\n'));
       $('#error').innerHTML = `<strong>Falha na validação da consulta</strong>${escape(error.message)} <span>(linha ${line}, coluna ${column})</span>`;
       $('#sql').setSelectionRange(position, position);
+      $('#sql').focus();
     } else {
       $('#error').innerHTML = `<strong>Erro na requisição</strong>${escape(error.message || 'Falha de comunicação com o servidor.')}`;
     }
@@ -142,6 +160,7 @@ window.addEventListener('keydown', event => {
 
 $('#sql').addEventListener('input', () => {
   $('#error').hidden = true;
+  $('.pipeline-card').classList.remove('complete');
   $('#status').classList.add('pending');
   $('#status').textContent = 'Consulta alterada: clique em Executar para atualizar.';
   $('#export').disabled = true;
@@ -287,9 +306,9 @@ function renderSchema() {
   $('#panel').innerHTML = heading('Catálogo BD_Vendas', 'As dez tabelas do modelo de dados utilizadas para validar referências e tipos.') + `
     <div class="schema-grid">
       ${Object.entries(schema).map(([table, columns]) => `
-        <article id="schema-${table}" class="schema-card ${selectedTable === table ? 'selected' : ''}">
-          <h3>${table} <small>${sampleCounts[table] ?? 0} registros</small></h3>
-          <ul>${columns.map(column => `<li>${column}</li>`).join('')}</ul>
+        <article id="schema-${escape(table)}" class="schema-card ${selectedTable === table ? 'selected' : ''}" tabindex="0" role="button" aria-pressed="${selectedTable === table ? 'true' : 'false'}">
+          <h3>${escape(table)} <small>${escape(sampleCounts[table] ?? 0)} registros</small></h3>
+          <ul>${columns.map(column => `<li>${escape(column)}</li>`).join('')}</ul>
         </article>
       `).join('')}
     </div>
@@ -346,9 +365,9 @@ async function initialize() {
       examples.map((example, index) => `<option value="${index}">${escape(example.name)}</option>`).join('');
 
     $('#table-nav').innerHTML = Object.keys(schema).map(table => `
-      <button data-table="${table}" type="button">
+      <button data-table="${escape(table)}" type="button">
         <span>▤</span>
-        <span>${table}</span>
+        <span>${escape(table)}</span>
         <small>${schema[table].length}</small>
       </button>
     `).join('');

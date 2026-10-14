@@ -38,7 +38,7 @@ python server.py --port 3001
 ---
 
 ### Rodando os Testes Unitários no Windows
-Para verificar se tudo está funcionando (17 testes automatizados):
+Para verificar se tudo está funcionando (19 testes automatizados):
 
 ```cmd
 .\testar.cmd
@@ -86,7 +86,7 @@ python3 -m unittest discover -s tests -v
 | `consulta/schema.py` | Leitura do catálogo relacional |
 | `data/catalog.json` | 10 tabelas do BD_Vendas, registros didáticos e exemplos de consulta |
 | `sql/bd-vendas.sql` | DDL MySQL opcional do modelo de banco |
-| `tests/` | Suite com 17 testes automatizados de unidade e integração |
+| `tests/` | Suite com 19 testes automatizados de unidade e integração |
 
 ---
 

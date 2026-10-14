@@ -100,6 +100,25 @@ class ServerTests(unittest.TestCase):
         self.assertGreater(int(headers["Content-Length"]), 0)
         self.assertEqual(body, b"")
 
+    def test_audit_fixes_server(self):
+        # 1. Content-Length negativo retorna 400
+        status_neg, _, _ = self.request("POST", "/api/process", b"", {"Content-Type": "application/json", "Content-Length": "-1"})
+        self.assertEqual(status_neg, 400)
+
+        # 2. OPTIONS retorna 204 com cabeçalhos CORS e Allow
+        status_opt, headers_opt, body_opt = self.request("OPTIONS", "/api/process")
+        self.assertEqual(status_opt, 204)
+        self.assertIn("POST", headers_opt.get("Allow", ""))
+        self.assertEqual(body_opt, b"")
+
+        # 3. Quebras CRLF são normalizadas com sucesso
+        status_crlf, _, body_crlf = self.request("POST", "/api/process", {"sql": "SELECT Nome\r\nFROM Produto\r\nWHERE idProduto = 1"})
+        self.assertEqual(status_crlf, 200)
+
+        # 4. Fingerprint do Server não vaza versão do Python
+        status_ver, headers_ver, _ = self.request("GET", "/api/health")
+        self.assertEqual(headers_ver.get("Server"), "ConsultaPython/1.0")
+
 
 if __name__ == "__main__":
     unittest.main()

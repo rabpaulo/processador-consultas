@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import socket
 from urllib.parse import unquote, urlsplit
 
 from consulta import process_query
@@ -19,19 +20,28 @@ MAX_BODY = 131072  # Permite 20.000 caracteres Unicode mesmo escapados em JSON.
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "ConsultaPython/1.0"
+    timeout = 10.0  # Limite de 10s contra conexões lentas ou suspensas
+
+    def version_string(self):
+        return self.server_version
 
     def send_bytes(self, status, contents, content_type, *, head=False, extra_headers=None):
-        self.send_response(status)
-        self.send_header("Content-Type", content_type + "; charset=utf-8")
-        self.send_header("Content-Length", str(len(contents)))
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        if extra_headers:
-            for key, val in extra_headers.items():
-                self.send_header(key, val)
-        self.end_headers()
-        if not head:
-            self.wfile.write(contents)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type + "; charset=utf-8")
+            self.send_header("Content-Length", str(len(contents)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            if self.close_connection:
+                self.send_header("Connection", "close")
+            if extra_headers:
+                for key, val in extra_headers.items():
+                    self.send_header(key, val)
+            self.end_headers()
+            if not head:
+                self.wfile.write(contents)
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
 
     def send_json(self, status, payload, *, head=False, extra_headers=None):
         contents = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
@@ -42,6 +52,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         self.serve_get(head=True)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Allow", "GET, POST, HEAD, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def serve_get(self, head=False):
         route = unquote(urlsplit(self.path).path)
@@ -61,7 +79,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_bytes(200, (ROOT / filename).read_bytes(), content_type, head=head)
 
     def do_POST(self):
-        if urlsplit(self.path).path != "/api/process":
+        route = unquote(urlsplit(self.path).path)
+        if route != "/api/process":
             return self.send_json(404, {"error": {"message": "Rota não encontrada."}})
         if self.headers.get_content_type() != "application/json":
             return self.send_json(415, {"error": {"message": "Envie a consulta como application/json."}})
@@ -69,7 +88,9 @@ class Handler(BaseHTTPRequestHandler):
             size = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             return self.send_json(400, {"error": {"message": "Tamanho de requisição inválido."}})
-        if size < 0 or size > MAX_BODY:
+        if size < 0:
+            return self.send_json(400, {"error": {"message": "Tamanho de requisição inválido."}})
+        if size > MAX_BODY:
             self.close_connection = True
             return self.send_json(413, {"error": {"message": "A requisição excedeu o limite de tamanho."}})
         sql = ""
@@ -77,11 +98,14 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(size).decode("utf-8"))
             if not isinstance(payload, dict) or not isinstance(payload.get("sql"), str):
                 raise QueryError("Informe uma string no campo sql.")
-            sql = payload["sql"]
+            sql = payload["sql"].replace("\r\n", "\n").replace("\r", "\n")
             result = process_query(sql)
             self.send_json(200, result)
         except (json.JSONDecodeError, UnicodeDecodeError):
             self.send_json(400, {"error": {"message": "JSON inválido.", "position": 0, "code": "request", "line": 1, "column": 1}})
+        except (TimeoutError, socket.timeout):
+            self.close_connection = True
+            self.send_json(408, {"error": {"message": "Tempo limite de requisição esgotado.", "position": 0, "code": "timeout"}})
         except QueryError as error:
             before = sql[:error.position]
             # A seleção de texto do navegador usa posições UTF-16.

@@ -22,7 +22,7 @@
   --text-primary: #f1f4f9;
   --text-secondary: #9da8bc;
   --text-muted: #738096;
-  --text-dim: #546074;
+  --text-dim: #8b99b0;
 
   /* Destaque Cirúrgico: Indigo / Electric Blue */
   --accent: #3b82f6;
@@ -793,6 +793,11 @@ kbd {
 .schema-card.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+}
+
+.schema-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .schema-card h3 {

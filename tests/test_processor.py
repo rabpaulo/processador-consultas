@@ -71,3 +71,27 @@ class ProcessorTests(unittest.TestCase):
     def test_first_delivery_does_not_build_a_plan(self):
         result = process_query("SELECT Nome FROM Produto")
         self.assertEqual(set(result), {"query", "backend"})
+
+    def test_audit_fixes_parser(self):
+        # 1. Inteiro longo (> 4300 dígitos) não causa crash 500 nem ValueError
+        with self.assertRaisesRegex(QueryError, "fora do intervalo"):
+            parse("SELECT Nome FROM Produto WHERE idProduto = " + "9" * 4500)
+
+        # 2. Literais booleanos TRUE e FALSE
+        res_bool = query("SELECT Nome FROM Produto WHERE 1 = TRUE AND 0 = FALSE")
+        self.assertEqual(res_bool["columns"][0]["key"], "Produto.Nome")
+
+        # 3. Notação científica no NUMBER
+        res_sci = query("SELECT Nome FROM Produto WHERE Preco > 1e2")
+        self.assertEqual(res_sci["tokens"][7]["type"], "number")
+        self.assertEqual(res_sci["tokens"][7]["value"], 100)
+
+        # 4. NATURAL em RESERVED rejeitado como trecho não suportado
+        with self.assertRaisesRegex(QueryError, "não suportado: NATURAL"):
+            query("SELECT * FROM Produto NATURAL JOIN Categoria")
+
+        # 5. Posição de erro em campo qualificado inexistente aponta exatamente para a coluna
+        sql = "SELECT p.Inexistente FROM Produto p"
+        with self.assertRaises(QueryError) as ctx:
+            query(sql)
+        self.assertEqual(ctx.exception.position, sql.index("Inexistente"))

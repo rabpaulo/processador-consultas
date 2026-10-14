@@ -13,8 +13,8 @@ class QueryError(ValueError):
         self.code = code
 
 
-RESERVED = set("SELECT FROM WHERE INNER JOIN ON AND AS OR LEFT RIGHT FULL OUTER CROSS GROUP BY ORDER HAVING LIMIT UNION INSERT UPDATE DELETE DROP CREATE DISTINCT NOT IS NULL TRUE FALSE".split())
-NUMBER = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)", re.ASCII)
+RESERVED = set("SELECT FROM WHERE INNER JOIN ON AND AS OR LEFT RIGHT FULL OUTER CROSS NATURAL GROUP BY ORDER HAVING LIMIT UNION INSERT UPDATE DELETE DROP CREATE DISTINCT NOT IS NULL TRUE FALSE".split())
+NUMBER = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", re.ASCII)
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
 OPERATOR = re.compile(r"<=|>=|<>|=|<|>")
 
@@ -52,14 +52,19 @@ def tokenize(sql):
         match = NUMBER.match(sql, index)
         if match:
             text = match.group()
-            if "." in text:
-                value = float(text)
-                if not math.isfinite(value):
-                    raise QueryError("Número fora do intervalo suportado.", start)
-                if value.is_integer():
-                    value = int(value)
-            else:
-                value = int(text)
+            if len(text.lstrip("+-")) > 4300:
+                raise QueryError("Número fora do intervalo suportado.", start, "resource")
+            try:
+                if "." in text or "e" in text.lower():
+                    value = float(text)
+                    if not math.isfinite(value):
+                        raise QueryError("Número fora do intervalo suportado.", start, "resource")
+                    if value.is_integer():
+                        value = int(value)
+                else:
+                    value = int(text)
+            except ValueError as error:
+                raise QueryError("Número fora do intervalo suportado.", start, "resource") from error
             tokens.append({"type": "number", "value": value, "position": start})
             index = match.end()
             continue
@@ -125,8 +130,9 @@ class Parser:
         if self.take("."):
             if allow_star and self.take("*"):
                 return {"type": "star", "qualifier": first, "position": position}
-            return {"type": "column", "qualifier": first, "name": self.identifier()["value"], "position": position}
-        return {"type": "column", "qualifier": None, "name": first, "position": position}
+            field_token = self.identifier()
+            return {"type": "column", "qualifier": first, "name": field_token["value"], "position": position, "field_position": field_token["position"]}
+        return {"type": "column", "qualifier": None, "name": first, "position": position, "field_position": position}
 
     def operand(self):
         token = self.current
@@ -135,6 +141,10 @@ class Parser:
             return {"type": "literal", "value": token["value"], "position": token["position"]}
         if self.take("NULL"):
             return {"type": "literal", "value": None, "position": token["position"]}
+        if self.take("TRUE"):
+            return {"type": "literal", "value": True, "position": token["position"]}
+        if self.take("FALSE"):
+            return {"type": "literal", "value": False, "position": token["position"]}
         return self.column()
 
     def term(self):
@@ -235,6 +245,8 @@ def operand_text(operand):
     value = operand["value"]
     if value is None:
         return "NULL"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
     if isinstance(value, str):
         return "'" + value.replace("'", "''") + "'"
     return str(value)
@@ -268,7 +280,8 @@ def validate(ast):
         ]
         if not matches:
             prefix = column["qualifier"] + "." if column["qualifier"] else ""
-            raise QueryError(f"Campo inexistente: {prefix}{column['name']}.", column["position"])
+            err_pos = column.get("field_position", column["position"]) if column["qualifier"] else column["position"]
+            raise QueryError(f"Campo inexistente: {prefix}{column['name']}.", err_pos)
         if len(matches) > 1:
             raise QueryError(f"Campo ambíguo: {column['name']}. Informe tabela ou alias.", column["position"])
         return matches[0]
