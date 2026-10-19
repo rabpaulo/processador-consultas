@@ -3,134 +3,185 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#14110f">
+  <meta name="theme-color" content="#0c0e14">
   <meta name="color-scheme" content="dark">
-  <title>QueryLab · Processador de Consultas SQL</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23f2a93b'/><text x='50%' y='54%' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-size='58' font-weight='bold' fill='%2314110f'>⋈</text></svg>">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <title>QueryLab — Processador de Consultas SQL</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%23131722'/><text x='50%' y='55%' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-size='56' font-weight='bold' fill='%233b82f6'>⋈</text></svg>">
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body class="workbench-body">
 
-  <!-- Cabeçalho -->
+  <!-- Barra Superior de Ferramentas (48px) -->
   <header class="topbar">
-    <a class="brand" href="/" aria-label="QueryLab, processador de consultas SQL">
-      <span class="brand-glyph" aria-hidden="true">⋈</span>
-      <span class="brand-text">
-        <span class="brand-title">QueryLab</span>
-        <span class="brand-sub">Processador de consultas · BD II</span>
-      </span>
-    </a>
-
-    <!-- Etapas do processador (stepper horizontal) -->
-    <div class="pipeline-card" aria-label="Etapas do processador">
-      <ol id="pipeline" class="pipeline-steps">
-        <li class="step-item" data-step="1">
-          <span class="step-num">1</span>
-          <div class="step-info"><strong>Parser</strong><span>Léxico e sintático</span></div>
-        </li>
-        <li class="step-item" data-step="2">
-          <span class="step-num">2</span>
-          <div class="step-info"><strong>Validação</strong><span>Catálogo e escopo</span></div>
-        </li>
-        <li class="step-item" data-step="3">
-          <span class="step-num">3</span>
-          <div class="step-info"><strong>Álgebra</strong><span>Forma canônica</span></div>
-        </li>
-        <li class="step-item" data-step="4">
-          <span class="step-num">4</span>
-          <div class="step-info"><strong>Grafo e plano</strong><span>Operadores e ordem</span></div>
-        </li>
-      </ol>
+    <div class="topbar-left">
+      <a class="brand" href="/" aria-label="QueryLab, processador de consultas SQL">
+        <span class="brand-glyph" aria-hidden="true">⋈</span>
+        <div class="brand-titles">
+          <span class="brand-title">Query<em>Lab</em></span>
+          <span class="brand-tag">SQL Engine</span>
+        </div>
+      </a>
     </div>
 
-    <div class="topbar-actions">
+    <div class="topbar-center">
+      <label for="example" class="example-selector-label">Exemplo:</label>
+      <select id="example" class="example-select" aria-label="Carregar exemplo de consulta SQL"></select>
+    </div>
+
+    <div class="topbar-right">
       <button id="export" class="btn btn-ghost" disabled title="Exportar resultado estruturado em JSON (Ctrl+S)">
         <span>Exportar JSON</span>
         <kbd class="key-hint">Ctrl+S</kbd>
       </button>
+      <button id="run" class="btn btn-action" title="Executar consulta SQL (Ctrl+Enter)">
+        <span class="btn-icon" aria-hidden="true">▶</span>
+        <span>Executar</span>
+        <kbd class="key-hint">Ctrl+Enter</kbd>
+      </button>
     </div>
   </header>
 
+  <!-- Layout Principal da IDE -->
   <div class="ide-container">
 
-    <!-- Coluna esquerda: editor e catálogo -->
-    <aside class="sidebar" aria-label="Editor e catálogo">
+    <!-- Painel Lateral: Catálogo BD_Vendas -->
+    <aside class="sidebar" aria-label="Catálogo do banco de dados">
+      <div class="sidebar-head">
+        <div class="sidebar-heading-row">
+          <span class="sidebar-heading">Catálogo BD_Vendas</span>
+          <span class="catalog-counter" id="catalog-count">10</span>
+        </div>
+        <p class="sidebar-subtext">Modelo relacional e tabelas</p>
+      </div>
 
+      <nav id="table-nav" class="table-list" aria-label="Tabelas do catálogo BD_Vendas"></nav>
+
+      <!-- Cartão de Estágios do Processador -->
+      <div class="pipeline-card">
+        <div class="pipeline-title">Estágios do Processador</div>
+        <ol id="pipeline" class="pipeline-steps">
+          <li class="step-item" data-step="1">
+            <span class="step-num">01</span>
+            <div class="step-info">
+              <strong>Análise Sintática</strong>
+              <span>Lexer & Parser recursivo</span>
+            </div>
+          </li>
+          <li class="step-item" data-step="2">
+            <span class="step-num">02</span>
+            <div class="step-info">
+              <strong>Validação Semântica</strong>
+              <span>Catálogo, tipos e escopo</span>
+            </div>
+          </li>
+          <li class="step-item" data-step="3">
+            <span class="step-num">03</span>
+            <div class="step-info">
+              <strong>Álgebra Relacional</strong>
+              <span>Conversão canônica formal</span>
+            </div>
+          </li>
+          <li class="step-item" data-step="4">
+            <span class="step-num">04</span>
+            <div class="step-info">
+              <strong>Grafo e Execução</strong>
+              <span>Árvore de operadores e plano</span>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </aside>
+
+    <!-- Área de Edição e Inspeção -->
+    <main class="workbench-main">
+
+      <!-- Editor SQL -->
       <section class="editor-panel" aria-label="Editor de consulta SQL">
         <div class="editor-header">
           <div class="file-tag">
             <span class="file-icon">SQL</span>
             <span class="file-name">consulta.sql</span>
           </div>
-          <div class="example-picker">
-            <label for="example" class="sr-only">Carregar exemplo</label>
-            <select id="example" class="example-select" aria-label="Carregar exemplo de consulta SQL"></select>
-          </div>
+          <div id="status" class="status-line" role="status" aria-live="polite"></div>
         </div>
 
         <div class="editor-body">
           <label class="sr-only" for="sql">Consulta SQL</label>
-          <textarea id="sql" spellcheck="false" aria-describedby="sql-help" placeholder="SELECT ... FROM ... WHERE ..."></textarea>
+          <textarea id="sql" spellcheck="false" aria-describedby="sql-help" placeholder="Escreva sua consulta SQL aqui... Ex: SELECT p.Nome, c.Descricao FROM Produto p INNER JOIN Categoria c ON p.Categoria_idCategoria = c.idCategoria"></textarea>
         </div>
 
         <div class="editor-footer">
           <div id="sql-help" class="syntax-capsules">
             <span class="syntax-capsule">SELECT</span>
             <span class="syntax-capsule">FROM</span>
-            <span class="syntax-capsule">JOIN … ON</span>
+            <span class="syntax-capsule">INNER JOIN … ON</span>
             <span class="syntax-capsule">WHERE</span>
             <span class="syntax-capsule">AND</span>
           </div>
-          <button id="run" class="btn btn-action" title="Executar consulta (Ctrl+Enter)">
-            <span>Executar</span>
-            <kbd class="key-hint">Ctrl+Enter</kbd>
-          </button>
+          <div class="editor-hints">
+            <span>Atalho: <kbd>Ctrl</kbd> + <kbd>Enter</kbd> para executar</span>
+          </div>
         </div>
       </section>
 
-      <div id="status" class="status-line" role="status" aria-live="polite"></div>
+      <!-- Alerta de Erro Contextual -->
       <div id="error" class="error-banner" role="alert" hidden></div>
 
-      <section class="catalog-card" aria-label="Catálogo do banco de dados">
-        <div class="sidebar-heading-row">
-          <span class="sidebar-heading">Catálogo BD_Vendas</span>
-          <span class="catalog-counter" id="catalog-count">10</span>
-        </div>
-        <nav id="table-nav" class="table-list" aria-label="Tabelas do catálogo BD_Vendas"></nav>
-      </section>
-    </aside>
-
-    <!-- Coluna direita: métricas e inspetor -->
-    <main class="workbench-main">
+      <!-- Barra de Métricas Rápidas -->
       <section id="metrics" class="metrics-row" aria-label="Métricas da consulta"></section>
 
+      <!-- Painel de Inspeção com Abas -->
       <section class="workspace-card">
         <div class="tab-toolbar">
           <div class="tabs" role="tablist" aria-label="Painéis de inspeção">
-            <button id="tab-graph" role="tab" aria-selected="true" aria-controls="panel" data-tab="graph">Grafo</button>
-            <button id="tab-algebra" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="algebra">Álgebra</button>
-            <button id="tab-plan" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="plan">Plano</button>
-            <button id="tab-results" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="results">Resultado</button>
-            <button id="tab-parser" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="parser">Parser</button>
-            <button id="tab-schema" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="schema">Esquema</button>
-            <button id="tab-deliveries" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="deliveries">Cronograma</button>
+            <button id="tab-graph" role="tab" aria-selected="true" aria-controls="panel" data-tab="graph">
+              <span class="tab-symbol">⋈</span> Grafo de Operadores
+            </button>
+            <button id="tab-algebra" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="algebra">
+              <span class="tab-symbol">π</span> Álgebra Relacional
+            </button>
+            <button id="tab-plan" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="plan">
+              <span class="tab-symbol">≡</span> Ordem de Execução
+            </button>
+            <button id="tab-results" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="results">
+              <span class="tab-symbol">▦</span> Resultado da Consulta
+            </button>
+            <button id="tab-parser" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="parser">
+              <span class="tab-symbol">{ }</span> Parser & AST
+            </button>
+            <button id="tab-schema" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="schema">
+              <span class="tab-symbol">▤</span> Esquema do Banco
+            </button>
+            <button id="tab-deliveries" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="deliveries">
+              <span class="tab-symbol">✓</span> Cronograma
+            </button>
           </div>
         </div>
         <div id="panel" class="inspector-content" role="tabpanel" aria-labelledby="tab-graph" tabindex="0"></div>
       </section>
+
     </main>
   </div>
 
+  <!-- Barra de Rodapé (28px) -->
   <footer class="statusbar">
-    <span>Banco de Dados II · Entrega 2 (20/10/2026)</span>
-    <span class="algebra-legend">
-      <b>π</b> Projeção <b>σ</b> Seleção <b>⋈</b> Junção <b>×</b> Produto
-    </span>
-    <span>Motor: Python</span>
+    <div class="statusbar-left">
+      <span>Banco de Dados II: Processador de Consultas</span>
+      <span class="statusbar-divider">|</span>
+      <span>Entrega 2 (20/10/2026)</span>
+    </div>
+    <div class="statusbar-right">
+      <span class="algebra-legend">
+        <b>π</b> Projeção
+        <b>σ</b> Seleção
+        <b>⋈</b> Junção
+        <b>×</b> Produto Cartesiano
+        <b>▤</b> Varredura
+      </span>
+      <span class="statusbar-divider">|</span>
+      <span>Motor: Python</span>
+    </div>
   </footer>
 
 </body>
