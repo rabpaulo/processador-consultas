@@ -962,6 +962,353 @@ tbody tr:hover {
 }
 
 /* ==========================================================================
+   Álgebra Relacional
+   ========================================================================== */
+
+.algebra-box {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.algebra-math-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-xs);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.algebra-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.algebra-format-buttons {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--bg-app);
+  padding: 2px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+}
+
+.format-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 3px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.format-btn:hover {
+  color: var(--text-primary);
+}
+
+.format-btn.active {
+  background: var(--bg-surface-active);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.algebra-formula {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-primary);
+  background: var(--bg-app);
+  padding: 14px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-default);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.algebra-formula .op-proj { color: #a78bfa; font-weight: bold; }
+.algebra-formula .op-sel { color: #f59e0b; font-weight: bold; }
+.algebra-formula .op-join { color: #10b981; font-weight: bold; }
+.algebra-formula .op-prod { color: #ef4444; font-weight: bold; }
+.algebra-formula .op-table { color: #38bdf8; }
+
+.algebra-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.copy-badge {
+  font-size: 11px;
+  color: var(--status-ok);
+  margin-left: 8px;
+}
+
+/* ==========================================================================
+   Grafo de Operadores (Árvore Canônica)
+   ========================================================================== */
+
+.graph-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.graph-legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+}
+
+.graph-legend-items {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.legend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.legend-badge b {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.badge-proj { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.4); }
+.badge-sel { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); }
+.badge-join { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); }
+.badge-prod { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+.badge-scan { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4); }
+
+.tree-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 16px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  overflow-x: auto;
+}
+
+.flow-node-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 10px 14px;
+  min-width: 280px;
+  max-width: 480px;
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  transition: all var(--ease);
+  position: relative;
+}
+
+.flow-node-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.node-glyph {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.node-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.node-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.node-op-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.node-tuples {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  color: var(--accent-hover);
+  white-space: nowrap;
+}
+
+.node-expression {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.node-schema-cols {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-arrow-down {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  gap: 2px;
+}
+
+.flow-arrow-down .arrow-line {
+  width: 2px;
+  height: 16px;
+  background: var(--border-strong);
+}
+
+.flow-arrow-down .arrow-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.join-branches-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+}
+
+.join-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  max-width: 380px;
+}
+
+/* ==========================================================================
+   Ordem de Execução (Plano)
+   ========================================================================== */
+
+.plan-table-container {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  overflow-x: auto;
+}
+
+.step-num-pill {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.step-glyph {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.step-tuples-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   Tabela de Resultados (Dados)
+   ========================================================================== */
+
+.results-table-wrap {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  overflow-x: auto;
+  max-height: 480px;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.null-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-subtle);
+  color: var(--text-dim);
+  border: 1px dashed var(--border-default);
+}
+
+/* ==========================================================================
    Design Responsivo
    ========================================================================== */
 

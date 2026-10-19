@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Player de Apresentação — QueryLab (Banco de Dados II)</title>
+  <style>
+    :root {
+      --bg: #090a0f;
+      --card-bg: #12151f;
+      --border: #232838;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --highlight: rgba(59, 130, 246, 0.15);
+      --highlight-border: #3b82f6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+      padding: 32px 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 780px;
+    }
+    .header {
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+    .player-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 28px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    audio {
+      width: 100%;
+      height: 48px;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .speed-buttons {
+      display: flex;
+      gap: 6px;
+    }
+    .speed-btn {
+      background: #1c2132;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+    .speed-btn.active, .speed-btn:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .section-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .section-card:hover {
+      border-color: #3b82f6;
+    }
+    .section-card.active {
+      border-color: var(--highlight-border);
+      background: var(--highlight);
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-weight: 600;
+      font-size: 16px;
+      color: #93c5fd;
+    }
+    .section-time {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: monospace;
+      background: #191f2e;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .section-text {
+      font-size: 14px;
+      color: #cbd5e1;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="badge">Banco de Dados II • Entrega 1</span>
+      <h1>Áudio da Apresentação do Projeto</h1>
+      <p class="subtitle">Explicação guiada dos 3 requisitos exigidos pelo professor (Duração: ~3min 35s)</p>
+    </div>
+
+    <div class="player-card">
+      <audio id="audio" controls src="apresentacao_pontos_1_2_3.mp3" preload="metadata"></audio>
+      <div class="controls-row">
+        <span>Clique em qualquer bloco abaixo para pular direto ao ponto</span>
+        <div class="speed-buttons">
+          <button class="speed-btn active" data-speed="1">1x</button>
+          <button class="speed-btn" data-speed="1.25">1.25x</button>
+          <button class="speed-btn" data-speed="1.5">1.5x</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="sections">
+      <div class="section-card" data-start="0" data-end="20">
+        <div class="section-header">
+          <span class="section-title">0. Abertura</span>
+          <span class="section-time">00:00 - 00:20</span>
+        </div>
+        <div class="section-text">
+          Olá a todos e olá, professor! Apresentamos a primeira etapa do QueryLab, o nosso processador de consultas SQL para a disciplina de Banco de Dados 2.
+        </div>
+      </div>
+
+      <div class="section-card" data-start="20" data-end="70">
+        <div class="section-header">
+          <span class="section-title">1. Interface Gráfica Existente e Funcional</span>
+          <span class="section-time">00:20 - 01:10</span>
+        </div>
+        <div class="section-text">
+          O primeiro ponto exigido nesta entrega é a Interface Gráfica Existente e Funcional. Nós desenvolvemos uma IDE web completa que roda localmente na porta 3000, construída em Python puro e JavaScript nativo, sem precisar instalar nada via pip ou npm. A interface possui um editor de consultas interativo com atalho Ctrl+Enter, seletor de consultas de exemplo para demonstração ao vivo, visualizador das dez tabelas do catálogo do banco, e exportação da análise em JSON com Ctrl+S.
+        </div>
+      </div>
+
+      <div class="section-card" data-start="70" data-end="135">
+        <div class="section-header">
+          <span class="section-title">2. A String é Parseada (Lexer & Parser)</span>
+          <span class="section-time">01:10 - 02:15</span>
+        </div>
+        <div class="section-text">
+          O segundo ponto é o parsing da consulta SQL. Implementamos um analisador léxico e um parser sintático descendente recursivo em Python. O tokenizador percorre o texto e classifica cada elemento em palavras-chave, identificadores, números, textos e operadores relacionais como igual, maior, menor ou diferente. Em seguida, o parser valida a gramática formal do subconjunto didático, decompondo as cláusulas SELECT, FROM, INNER JOIN com a condição ON, e cláusulas WHERE com conjunções AND e parênteses. A partir disso, é construída a árvore sintática abstrata que estrutura a projeção, as relações e os predicados da consulta.
+        </div>
+      </div>
+
+      <div class="section-card" data-start="135" data-end="195">
+        <div class="section-header">
+          <span class="section-title">3. Validação de Campos e Comandos Errados</span>
+          <span class="section-time">02:15 - 03:15</span>
+        </div>
+        <div class="section-text">
+          O terceiro ponto é a validação de comandos e campos errados. Aqui entra o nosso validador semântico, que confere a consulta contra o catálogo oficial do banco de dados BD Vendas, composto por dez tabelas. O sistema rejeita comandos não suportados como DELETE, INSERT ou DROP, garantindo o foco nas consultas de leitura. Além disso, valida se cada tabela e coluna informada realmente existe, confere o escopo dos apelidos nas junções e detecta ambiguidade quando uma coluna pertence a mais de uma tabela. Um diferencial importante é a precisão: em caso de erro, a ferramenta aponta a linha e a coluna exatas e move o cursor do editor diretamente para a palavra incorreta.
+        </div>
+      </div>
+
+      <div class="section-card" data-start="195" data-end="216">
+        <div class="section-header">
+          <span class="section-title">4. Conclusão da Entrega 1</span>
+          <span class="section-time">03:15 - 03:35</span>
+        </div>
+        <div class="section-text">
+          Com esses três pontos plenamente atendidos e validados por uma suíte de 19 testes automatizados, nossa primeira entrega cumpre todos os requisitos exigidos pela disciplina. Muito obrigado!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const audio = document.getElementById('audio');
+    const cards = document.querySelectorAll('.section-card');
+    const speedButtons = document.querySelectorAll('.speed-btn');
+
+    cards.forEach(card => {
+      card.addEventListener('click', () => {
+        const start = parseFloat(card.dataset.start);
+        audio.currentTime = start;
+        audio.play();
+      });
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      const current = audio.currentTime;
+      cards.forEach(card => {
+        const start = parseFloat(card.dataset.start);
+        const end = parseFloat(card.dataset.end);
+        const active = current >= start && current < end;
+        card.classList.toggle('active', active);
+      });
+    });
+
+    speedButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        speedButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        audio.playbackRate = parseFloat(btn.dataset.speed);
+      });
+    });
+  </script>
+</body>
+</html>

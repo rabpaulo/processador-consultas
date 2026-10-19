@@ -1,7 +1,7 @@
 # Processador de Consultas SQL (QueryLab)
 
-> Projeto Acadêmico de Banco de Dados II — Etapa 2 (Entrega 1: 15/10/2026).  
-> Analisador léxico, parser sintático descendente recursivo e validador semântico em Python puro com interface gráfica web anti-slop.
+> Projeto Acadêmico de Banco de Dados II — Etapa 2 (Entrega 2: 20/10/2026).
+> Analisador léxico, parser sintático, validador semântico, conversor para álgebra relacional, gerador de grafo de operadores e plano de execução em Python puro com interface gráfica web.
 
 ---
 
@@ -38,7 +38,7 @@ python server.py --port 3001
 ---
 
 ### Rodando os Testes Unitários no Windows
-Para verificar se tudo está funcionando (19 testes automatizados):
+Para verificar se tudo está funcionando (22 testes automatizados com 100% de aprovação):
 
 ```cmd
 .\testar.cmd
@@ -62,12 +62,19 @@ python3 -m unittest discover -s tests -v
 
 ---
 
-## 🎯 Funcionalidades da Entrega 1 (15/10/2026)
+## 🎯 Funcionalidades Entregues
 
+### Entrega 1 (15/10/2026)
 * **Interface Gráfica**: Editor SQL com atalho <kbd>Ctrl</kbd> + <kbd>Enter</kbd>, seletor rápido de exemplos, navegação pelo catálogo de 10 tabelas e exportação dos resultados em JSON (<kbd>Ctrl</kbd> + <kbd>S</kbd>).
 * **Análise Sintática (Parser)**: Decomposição da consulta em tokens com posições exatas UTF-16, montagem da estrutura de projeção (`SELECT`), relações (`FROM` / `INNER JOIN ... ON`) e condições (`WHERE` e `AND`).
 * **Validação Semântica**: Verificação rigorosa contra o catálogo `BD_Vendas` (existência de tabelas, resolução de colunas sem ambiguidade, escopo de aliases e sintaxe proibida).
 * **Tratamento de Erros**: Aponta linha e coluna exatas de comandos ou campos inválidos (ex.: `DELETE FROM Produto` ou campos inexistentes) e posiciona o cursor no trecho problemático.
+
+### Entrega 2 (20/10/2026)
+* **Conversão para Álgebra Relacional**: Tradução formal canônica da consulta SQL para álgebra relacional nos formatos Unicode ($\pi, \sigma, \bowtie, \times, \land$), LaTeX e ASCII com decomposição dos componentes e botão de cópia rápida.
+* **Grafo de Operadores Não Otimizado**: Construção em memória da árvore canônica onde os nós são operadores ($\pi, \sigma, \bowtie, \times, \▤$) e as arestas indicam a direção do fluxo ascendente de tuplas intermediárias.
+* **Ordem de Execução (Plano de Consulta)**: Percurso bottom-up (pós-ordem) no grafo de operadores gerando a ordem sequencial determinística de execução passo a passo ($R_1, R_2, \dots$).
+* **Execução em Memória e Exibição de Resultados**: Avaliação do plano sobre a base de exemplo `BD_Vendas` com cálculo das tuplas intermediárias de cada nó e renderização dos dados na interface gráfica.
 
 ---
 
@@ -78,15 +85,19 @@ python3 -m unittest discover -s tests -v
 | `iniciar.cmd` | Iniciador rápido de um clique para Windows |
 | `testar.cmd` | Executor rápido de testes para Windows |
 | `server.py` | Servidor HTTP local e API JSON em Python (biblioteca padrão) |
-| `index.html` | Interface do usuário (IDE limpa, sem AI-slop) |
-| `styles.css` | Design system em grafite neutro escuro com contraste WCAG AA |
-| `app.js` | Controle da interface, atalhos de teclado e chamadas à API Python |
+| `index.html` | Interface do usuário (IDE limpa, com visualização de grafo, álgebra e resultados) |
+| `styles.css` | Design system em grafite escuro com estilos para árvore de operadores e álgebra |
+| `app.js` | Controle da interface, renderização do grafo, álgebra, plano e dados |
 | `consulta/parser.py` | Lexer, parser recursivo e validação semântica |
-| `consulta/processor.py` | Pipeline da entrega 1 |
+| `consulta/algebra.py` | Conversão para Álgebra Relacional (Unicode, LaTeX e ASCII) |
+| `consulta/planner.py` | Construção do Grafo de Operadores e geração do Plano de Execução |
+| `consulta/executor.py` | Motor de execução in-memory sobre o catálogo didático |
+| `consulta/processor.py` | Pipeline integrado da Entrega 2 |
 | `consulta/schema.py` | Leitura do catálogo relacional |
 | `data/catalog.json` | 10 tabelas do BD_Vendas, registros didáticos e exemplos de consulta |
 | `sql/bd-vendas.sql` | DDL MySQL opcional do modelo de banco |
-| `tests/` | Suite com 19 testes automatizados de unidade e integração |
+| `tests/` | Suite com 22 testes automatizados de unidade e integração |
+| `ENTREGA.md` | Guia detalhado da entrega acadêmica e roteiro de demonstração |
 
 ---
 

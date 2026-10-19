@@ -71,6 +71,20 @@
               <span>Tabelas, campos e escopo</span>
             </div>
           </li>
+          <li class="step-item" data-step="3">
+            <span class="step-num">03</span>
+            <div class="step-info">
+              <strong>Álgebra Relacional</strong>
+              <span>Conversão formal canônica</span>
+            </div>
+          </li>
+          <li class="step-item" data-step="4">
+            <span class="step-num">04</span>
+            <div class="step-info">
+              <strong>Grafo e Execução</strong>
+              <span>Árvore de operadores e plano</span>
+            </div>
+          </li>
         </ol>
       </div>
     </aside>
@@ -117,12 +131,16 @@
       <section class="workspace-card">
         <div class="tab-toolbar">
           <div class="tabs" role="tablist" aria-label="Painéis de inspeção">
-            <button id="tab-parser" role="tab" aria-selected="true" aria-controls="panel" data-tab="parser">Parser & AST</button>
+            <button id="tab-graph" role="tab" aria-selected="true" aria-controls="panel" data-tab="graph">Grafo de Operadores</button>
+            <button id="tab-algebra" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="algebra">Álgebra Relacional</button>
+            <button id="tab-plan" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="plan">Ordem de Execução</button>
+            <button id="tab-results" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="results">Resultado da Consulta</button>
+            <button id="tab-parser" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="parser">Parser & AST</button>
             <button id="tab-schema" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="schema">Esquema do Banco</button>
-            <button id="tab-deliveries" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="deliveries">Cronograma de Entregas</button>
+            <button id="tab-deliveries" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="deliveries">Cronograma</button>
           </div>
         </div>
-        <div id="panel" class="inspector-content" role="tabpanel" aria-labelledby="tab-parser" tabindex="0"></div>
+        <div id="panel" class="inspector-content" role="tabpanel" aria-labelledby="tab-graph" tabindex="0"></div>
       </section>
 
     </main>
@@ -133,7 +151,7 @@
     <div class="statusbar-left">
       <span>Banco de Dados II: Processador de Consultas</span>
       <span class="statusbar-divider">/</span>
-      <span>Entrega 1 (15/10/2026)</span>
+      <span>Entrega 2 (20/10/2026)</span>
     </div>
     <div class="statusbar-right">
       <span class="algebra-legend">

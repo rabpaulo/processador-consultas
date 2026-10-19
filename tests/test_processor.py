@@ -68,9 +68,76 @@ class ProcessorTests(unittest.TestCase):
         result = process_query("SELECT c.*, p.Nome, p.Nome FROM Categoria c INNER JOIN Produto p ON c.idCategoria = p.Categoria_idCategoria")
         self.assertEqual([column["key"] for column in result["query"]["columns"]], ["c.idCategoria", "c.Descricao", "p.Nome", "p.Nome"])
 
-    def test_first_delivery_does_not_build_a_plan(self):
+    def test_second_delivery_builds_algebra_graph_and_plan(self):
         result = process_query("SELECT Nome FROM Produto")
-        self.assertEqual(set(result), {"query", "backend"})
+        self.assertEqual(set(result), {"query", "algebra", "graph", "plan", "result", "backend"})
+        self.assertEqual(result["backend"], "Python")
+        self.assertNotIn("optimizedResult", result)
+
+    def test_relational_algebra_formats(self):
+        # 1. Consulta simples
+        res1 = process_query("SELECT Nome, Preco FROM Produto WHERE Preco > 200")
+        alg1 = res1["algebra"]
+        self.assertIn("π[Produto.Nome, Produto.Preco]", alg1["unicode"])
+        self.assertIn("σ[Produto.Preco > 200]", alg1["unicode"])
+        self.assertIn("\\pi_{Produto.Nome, Produto.Preco}", alg1["latex"])
+        self.assertIn("\\sigma_{Produto.Preco > 200}", alg1["latex"])
+        self.assertIn("PI[Produto.Nome, Produto.Preco]", alg1["ascii"])
+        self.assertIn("SIGMA[Produto.Preco > 200]", alg1["ascii"])
+
+        # 2. Junção com INNER JOIN ON
+        res2 = process_query("SELECT p.Nome, c.Descricao FROM Produto p INNER JOIN Categoria c ON p.Categoria_idCategoria = c.idCategoria")
+        alg2 = res2["algebra"]
+        self.assertIn("⋈[p.Categoria_idCategoria = c.idCategoria]", alg2["unicode"])
+        self.assertIn("\\bowtie_{p.Categoria_idCategoria = c.idCategoria}", alg2["latex"])
+        self.assertIn("JOIN[p.Categoria_idCategoria = c.idCategoria]", alg2["ascii"])
+
+        # 3. Junção no WHERE (Produto Cartesiano)
+        res3 = process_query("SELECT p.Nome, c.Descricao FROM Produto p, Categoria c WHERE p.Categoria_idCategoria = c.idCategoria")
+        alg3 = res3["algebra"]
+        self.assertIn("×", alg3["unicode"])
+        self.assertIn("\\times", alg3["latex"])
+        self.assertIn("CROSS", alg3["ascii"])
+
+    def test_graph_and_execution_plan_structure(self):
+        result = process_query("SELECT p.Nome, c.Descricao FROM Produto p INNER JOIN Categoria c ON p.Categoria_idCategoria = c.idCategoria WHERE p.Preco > 200")
+        graph = result["graph"]
+        plan = result["plan"]
+
+        # Verifica nós do grafo
+        node_types = [n["type"] for n in graph["nodes"]]
+        self.assertIn("scan", node_types)
+        self.assertIn("join", node_types)
+        self.assertIn("select", node_types)
+        self.assertIn("project", node_types)
+
+        # Raiz deve ser a projeção e folhas as varreduras
+        self.assertEqual(graph["rootId"], "project_1")
+        self.assertEqual(set(graph["leaves"]), {"scan_p", "scan_c"})
+
+        # Ordem de execução ascendente (bottom-up)
+        steps = plan["steps"]
+        self.assertEqual(len(steps), 5)
+        self.assertEqual([s["type"] for s in steps], ["scan", "scan", "join", "select", "project"])
+        self.assertEqual(steps[0]["step"], 1)
+        self.assertEqual(steps[-1]["step"], 5)
+
+    def test_executor_sample_evaluation(self):
+        result = process_query("SELECT p.Nome, p.Preco, c.Descricao FROM Produto AS p INNER JOIN Categoria AS c ON p.Categoria_idCategoria = c.idCategoria WHERE p.Preco > 200 AND c.Descricao = 'Informática'")
+        data = result["result"]
+        self.assertEqual(data["columns"], ["p.Nome", "p.Preco", "c.Descricao"])
+        self.assertEqual(data["rowCount"], 3)
+        self.assertTrue(data["hasData"])
+
+        # Verifica dados retornados
+        nomes = [r[0] for r in data["rows"]]
+        self.assertIn("Notebook", nomes)
+        self.assertIn("Teclado", nomes)
+        self.assertIn("Monitor", nomes)
+
+        # Verifica contagem de tuplas nos passos do plano
+        step_rows = [s["rowsProduced"] for s in result["plan"]["steps"]]
+        self.assertEqual(step_rows, [8, 3, 8, 3, 3])
 
     def test_audit_fixes_parser(self):
         # 1. Inteiro longo (> 4300 dígitos) não causa crash 500 nem ValueError
