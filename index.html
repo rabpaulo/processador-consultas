@@ -3,38 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0c0e14">
+  <meta name="theme-color" content="#0e131b">
   <meta name="color-scheme" content="dark">
-  <title>QueryLab — Processador de Consultas SQL</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%23131722'/><text x='50%' y='55%' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-size='56' font-weight='bold' fill='%233b82f6'>⋈</text></svg>">
+  <title>Processador de Consultas: Álgebra Relacional e Grafo de Execução</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%23161e2b'/><text x='50%' y='55%' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-size='56' font-weight='bold' fill='%2338bdf8'>⋈</text></svg>">
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body class="workbench-body">
 
-  <!-- Barra Superior de Ferramentas (48px) -->
+  <!-- Barra Superior da Ferramenta -->
   <header class="topbar">
     <div class="topbar-left">
-      <a class="brand" href="/" aria-label="QueryLab, processador de consultas SQL">
+      <a class="brand" href="/" aria-label="Processador de Consultas SQL">
         <span class="brand-glyph" aria-hidden="true">⋈</span>
         <div class="brand-titles">
-          <span class="brand-title">Query<em>Lab</em></span>
-          <span class="brand-tag">SQL Engine</span>
+          <span class="brand-title">Processador de Consultas</span>
+          <span class="brand-catalog-badge">BD_Vendas</span>
         </div>
       </a>
     </div>
 
     <div class="topbar-center">
-      <label for="example" class="example-selector-label">Exemplo:</label>
+      <label for="example" class="example-label">Exemplo de Consulta:</label>
       <select id="example" class="example-select" aria-label="Carregar exemplo de consulta SQL"></select>
     </div>
 
     <div class="topbar-right">
-      <button id="export" class="btn btn-ghost" disabled title="Exportar resultado estruturado em JSON (Ctrl+S)">
+      <button id="export" class="btn btn-secondary" disabled title="Exportar resultado estruturado em JSON (Ctrl+S)">
         <span>Exportar JSON</span>
         <kbd class="key-hint">Ctrl+S</kbd>
       </button>
-      <button id="run" class="btn btn-action" title="Executar consulta SQL (Ctrl+Enter)">
+      <button id="run" class="btn btn-primary" title="Executar consulta SQL (Ctrl+Enter)">
         <span class="btn-icon" aria-hidden="true">▶</span>
         <span>Executar</span>
         <kbd class="key-hint">Ctrl+Enter</kbd>
@@ -42,54 +42,23 @@
     </div>
   </header>
 
-  <!-- Layout Principal da IDE -->
+  <!-- Layout Principal do Workbench -->
   <div class="ide-container">
 
     <!-- Painel Lateral: Catálogo BD_Vendas -->
     <aside class="sidebar" aria-label="Catálogo do banco de dados">
-      <div class="sidebar-head">
-        <div class="sidebar-heading-row">
-          <span class="sidebar-heading">Catálogo BD_Vendas</span>
-          <span class="catalog-counter" id="catalog-count">10</span>
+      <div class="sidebar-header">
+        <div class="sidebar-title-row">
+          <span class="sidebar-title">Catálogo Relacional</span>
+          <span class="sidebar-badge" id="catalog-count">10 tabelas</span>
         </div>
-        <p class="sidebar-subtext">Modelo relacional e tabelas</p>
+        <p class="sidebar-caption">Esquema e instâncias de BD_Vendas</p>
       </div>
 
       <nav id="table-nav" class="table-list" aria-label="Tabelas do catálogo BD_Vendas"></nav>
 
-      <!-- Cartão de Estágios do Processador -->
-      <div class="pipeline-card">
-        <div class="pipeline-title">Estágios do Processador</div>
-        <ol id="pipeline" class="pipeline-steps">
-          <li class="step-item" data-step="1">
-            <span class="step-num">01</span>
-            <div class="step-info">
-              <strong>Análise Sintática</strong>
-              <span>Lexer & Parser recursivo</span>
-            </div>
-          </li>
-          <li class="step-item" data-step="2">
-            <span class="step-num">02</span>
-            <div class="step-info">
-              <strong>Validação Semântica</strong>
-              <span>Catálogo, tipos e escopo</span>
-            </div>
-          </li>
-          <li class="step-item" data-step="3">
-            <span class="step-num">03</span>
-            <div class="step-info">
-              <strong>Álgebra Relacional</strong>
-              <span>Conversão canônica formal</span>
-            </div>
-          </li>
-          <li class="step-item" data-step="4">
-            <span class="step-num">04</span>
-            <div class="step-info">
-              <strong>Grafo e Execução</strong>
-              <span>Árvore de operadores e plano</span>
-            </div>
-          </li>
-        </ol>
+      <div class="sidebar-hint">
+        <p>Clique em uma tabela para inspecionar seus atributos e registros no esquema.</p>
       </div>
     </aside>
 
@@ -97,29 +66,29 @@
     <main class="workbench-main">
 
       <!-- Editor SQL -->
-      <section class="editor-panel" aria-label="Editor de consulta SQL">
+      <section class="editor-section" aria-label="Editor de consulta SQL">
         <div class="editor-header">
-          <div class="file-tag">
-            <span class="file-icon">SQL</span>
-            <span class="file-name">consulta.sql</span>
+          <div class="editor-file-tab">
+            <span class="editor-file-icon">SQL</span>
+            <span class="editor-file-name">consulta.sql</span>
           </div>
-          <div id="status" class="status-line" role="status" aria-live="polite"></div>
+          <div id="status" class="editor-status" role="status" aria-live="polite"></div>
         </div>
 
-        <div class="editor-body">
+        <div class="editor-container">
           <label class="sr-only" for="sql">Consulta SQL</label>
           <textarea id="sql" spellcheck="false" aria-describedby="sql-help" placeholder="Escreva sua consulta SQL aqui... Ex: SELECT p.Nome, c.Descricao FROM Produto p INNER JOIN Categoria c ON p.Categoria_idCategoria = c.idCategoria"></textarea>
         </div>
 
-        <div class="editor-footer">
-          <div id="sql-help" class="syntax-capsules">
-            <span class="syntax-capsule">SELECT</span>
-            <span class="syntax-capsule">FROM</span>
-            <span class="syntax-capsule">INNER JOIN … ON</span>
-            <span class="syntax-capsule">WHERE</span>
-            <span class="syntax-capsule">AND</span>
+        <div class="editor-toolbar">
+          <div id="sql-help" class="syntax-tokens">
+            <span class="syntax-token">SELECT</span>
+            <span class="syntax-token">FROM</span>
+            <span class="syntax-token">INNER JOIN … ON</span>
+            <span class="syntax-token">WHERE</span>
+            <span class="syntax-token">AND</span>
           </div>
-          <div class="editor-hints">
+          <div class="editor-shortcut-hint">
             <span>Atalho: <kbd>Ctrl</kbd> + <kbd>Enter</kbd> para executar</span>
           </div>
         </div>
@@ -128,15 +97,15 @@
       <!-- Alerta de Erro Contextual -->
       <div id="error" class="error-banner" role="alert" hidden></div>
 
-      <!-- Barra de Métricas Rápidas -->
-      <section id="metrics" class="metrics-row" aria-label="Métricas da consulta"></section>
+      <!-- Barra de Telemetria da Consulta -->
+      <section id="metrics" class="telemetry-bar" aria-label="Telemetria da consulta"></section>
 
       <!-- Painel de Inspeção com Abas -->
-      <section class="workspace-card">
-        <div class="tab-toolbar">
-          <div class="tabs" role="tablist" aria-label="Painéis de inspeção">
+      <section class="inspector-card">
+        <div class="tab-header">
+          <div class="tabs" role="tablist" aria-label="Visualizações do processador">
             <button id="tab-graph" role="tab" aria-selected="true" aria-controls="panel" data-tab="graph">
-              <span class="tab-symbol">⋈</span> Grafo de Operadores
+              <span class="tab-symbol">⋈</span> Árvore de Operadores
             </button>
             <button id="tab-algebra" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="algebra">
               <span class="tab-symbol">π</span> Álgebra Relacional
@@ -148,38 +117,39 @@
               <span class="tab-symbol">▦</span> Resultado da Consulta
             </button>
             <button id="tab-parser" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="parser">
-              <span class="tab-symbol">{ }</span> Parser & AST
+              <span class="tab-symbol">{ }</span> Parser & Validação
             </button>
             <button id="tab-schema" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="schema">
-              <span class="tab-symbol">▤</span> Esquema do Banco
+              <span class="tab-symbol">▤</span> Esquema BD_Vendas
             </button>
             <button id="tab-deliveries" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="deliveries">
-              <span class="tab-symbol">✓</span> Cronograma
+              <span class="tab-symbol">✓</span> Requisitos da Disciplina
             </button>
           </div>
         </div>
+
         <div id="panel" class="inspector-content" role="tabpanel" aria-labelledby="tab-graph" tabindex="0"></div>
       </section>
 
     </main>
   </div>
 
-  <!-- Barra de Rodapé (28px) -->
+  <!-- Barra de Rodapé Técnica -->
   <footer class="statusbar">
     <div class="statusbar-left">
       <span>Banco de Dados II: Processador de Consultas</span>
-      <span class="statusbar-divider">|</span>
-      <span>Entrega 2 (20/10/2026)</span>
+      <span class="statusbar-sep">/</span>
+      <span>Entrega 2 (20/10/2026): Álgebra Relacional e Árvore Canônica</span>
     </div>
     <div class="statusbar-right">
-      <span class="algebra-legend">
-        <b>π</b> Projeção
-        <b>σ</b> Seleção
-        <b>⋈</b> Junção
-        <b>×</b> Produto Cartesiano
-        <b>▤</b> Varredura
+      <span class="operator-guide">
+        <span class="op-chip op-proj">π Projeção</span>
+        <span class="op-chip op-sel">σ Seleção</span>
+        <span class="op-chip op-join">⋈ Junção</span>
+        <span class="op-chip op-prod">× Produto</span>
+        <span class="op-chip op-scan">▤ Varredura</span>
       </span>
-      <span class="statusbar-divider">|</span>
+      <span class="statusbar-sep">/</span>
       <span>Motor: Python</span>
     </div>
   </footer>
