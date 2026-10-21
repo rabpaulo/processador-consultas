@@ -1,6 +1,6 @@
-# Guia da entrega 2 — 20/10/2026
+# Guia da Entrega 3 — 22/10/2026
 
-Branch: `main`. Versão cumulativa organizada conforme o cronograma oficial da disciplina de Banco de Dados II (Trabalho Etapa 2).
+Branch: `main`. Versão cumulativa e funcional organizada conforme o cronograma oficial da disciplina de Banco de Dados II (Trabalho Prático — Processador de Consultas).
 
 ---
 
@@ -8,81 +8,93 @@ Branch: `main`. Versão cumulativa organizada conforme o cronograma oficial da d
 
 | Prazo | Requisito | Situação nesta versão |
 | :--- | :--- | :--- |
-| **15/10/2026** | **Interface gráfica existente e funcional** | **Disponível** |
+| **15/10/2026** | **Interface gráfica existente e funcional** | **Disponível (Remodelada em Tema Claro Editorial)** |
 | **15/10/2026** | **A string é parseada** | **Disponível** |
 | **15/10/2026** | **Campos e comandos errados são validados** | **Disponível** |
-| **20/10/2026** | **Conversão para álgebra relacional** | **Disponível** |
+| **20/10/2026** | **Conversão para álgebra relacional** | **Disponível (Canônica & Otimizada)** |
 | **20/10/2026** | **Grafo não otimizado** | **Disponível** |
-| 22/10/2026 | Heurísticas de projeção e seleção | Etapa futura |
+| **22/10/2026** | **Aplicação da Heurística Projeção e Seleção** | **Disponível** |
 | 27/10/2026 | Demais heurísticas | Etapa futura |
 
 ---
 
-## O que foi implementado na Entrega 2 (20/10/2026)
+## O que foi implementado na Entrega 3 (22/10/2026)
 
-### 1. Conversão para Álgebra Relacional (`consulta/algebra.py`)
-- **Conversão canônica**: Transforma a consulta SQL validada para a expressão formal equivalente na álgebra relacional de Codd.
-- **Múltiplos formatos de exibição**:
-  - **Unicode matemático**: Símbolos padronizados ($\pi$ para projeção, $\sigma$ para seleção, $\bowtie$ para junção interna, $\times$ para produto cartesiano, $\land$ para conjunção, $\le$, $\ge$, $\ne$).
-  - **LaTeX**: Código matematicamente formatado para renderização tipográfica e relatórios acadêmicos.
-  - **ASCII**: Notação textual pura (`PI`, `SIGMA`, `JOIN`, `CROSS`, `AND`).
-- **Componentização**: Detalhamento individual dos operadores de projeção, seleção e relações de entrada.
-- **Cópia rápida**: Botão com 1 clique para copiar a expressão para a área de transferência.
+### 1. Heurística de Redução de Tuplas — Push-Down de Seleção (`consulta/optimizer.py`)
+- **Decomposição conjuntiva**: Decompõe condições complexas do `WHERE` em predicados atômicos interligados por `AND`.
+- **Descida de predicados unários (Push-down σ)**: Predicados que referenciam apenas atributos de uma única relação (ex.: `p.Preco > 200`, `c.Descricao = 'Informática'`) são empurrados para a base da árvore, executando imediatamente após a leitura (scan) da relação.
+- **Redução drástica de cardinalidade**: Evita que tuplas não correspondentes participem de combinações binárias custosas (junções e produtos cartesianos).
+- **Evitar Produto Cartesiano (Heurística 5.b.ii)**: Identifica predicados de junção declarados no `WHERE` (ex.: `p.Categoria_idCategoria = c.idCategoria`) e converte o produto cartesiano ($\times$) em junção interna condicionada ($\bowtie$), eliminando explosão combinatória.
 
-### 2. Grafo de Operadores Não Otimizado (`consulta/planner.py`)
-- **Árvore canônica de operadores**: Estrutura em grafo gerada em memória onde os nós representam os operadores relacionais e as arestas direcionam o fluxo ascendente das tuplas intermediárias.
-- **Nós implementados**:
-  - **Varredura Sequencial ($\▤$)**: Nós folhas que leem as tabelas bases do catálogo `BD_Vendas`.
-  - **Junção ($\bowtie$) / Produto Cartesiano ($\times$)**: Combinação horizontal das relações através de `INNER JOIN ... ON` ou produto cartesiano no `FROM` (`A, B`).
-  - **Seleção ($\sigma$)**: Filtro horizontal das tuplas intermediárias aplicando o predicado do `WHERE`.
-  - **Projeção ($\pi$)**: Nó raiz que restringe as tuplas aos atributos solicitados no `SELECT`.
-- **Renderização visual na GUI**: Layout em árvore com distinção por cores, badges dos operadores, fórmulas, predicados e telemetria de tuplas intermediárias.
+### 2. Heurística de Redução de Atributos — Push-Down de Projeção (`consulta/optimizer.py`)
+- **Análise de necessidade de atributos**: Determina para cada relação exatamente os atributos necessários em etapas posteriores:
+  - Atributos exigidos na projeção final (`SELECT`);
+  - Atributos exigidos em predicados de junção (`ON` ou `WHERE`).
+- **Projeções intermediárias nas folhas (Push-down π)**: Logo após a seleção unária (ou leitura da relação), descarta precocemente todos os atributos que não serão mais referenciados.
+- **Economia de memória e I/O**: Reduz a largura das tuplas intermediárias antes de entrarem nas junções e buffers em memória.
 
-### 3. Ordem de Execução / Plano de Consulta (`consulta/planner.py` & `consulta/executor.py`)
-- **Percurso ascendente (bottom-up / pós-ordem)**: Algoritmo determinístico que percorre as folhas até a raiz gerando a ordem sequencial de passos a serem executados pelo processador simples de consultas.
-- **Detalhamento de cada passo**: Número do passo, símbolo do operador, operação executada, relações de entrada e saída ($R_1, R_2, \dots$), predicado avaliado e contagem real de tuplas geradas.
+### 3. Grafo de Operadores Otimizado vs Canônico (`consulta/optimizer.py` & `app.js`)
+- **Grafo em memória**: Estrutura em memória contendo nós de varredura, seleções antecipadas com tag de heurística, projeções antecipadas com atributos descartados, junções otimizadas e projeção final.
+- **Alternador de visualização na GUI**:
+  - **Árvore Otimizada (22/10)**: Exibe a estrutura com push-downs aplicados e badges indicativos;
+  - **Árvore Canônica (20/10)**: Exibe a árvore padrão sem otimizações;
+  - **Comparativo Lado a Lado**: Visualização simultânea de ambas as árvores para contraste didático e auditoria.
+- **Métricas comparativas em tempo real**:
+  - Contagem de tuplas intermediárias (Canônico vs Otimizado);
+  - Volume de dados intermediários em células de memória (`tuplas × atributos`);
+  - Percentual de redução alcançado (ex.: até 60% de economia de dados em memória).
 
-### 4. Execução Didática e Exibição de Resultados (`consulta/executor.py`)
-- Avaliação in-memory do plano de consulta sobre os dados didáticos do catálogo `BD_Vendas`.
-- Exibição tabular interativa dos registros resultantes diretamente na nova aba **Resultado da Consulta**.
-- Métricas enriquecidas: contagem de tabelas, total de operadores, passos do plano e tuplas finais.
+### 4. Álgebra Relacional Otimizada (`consulta/optimizer.py`)
+- Geração automática da expressão matemática refletindo a nova árvore em múltiplos formatos:
+  - **Unicode**: $\pi_{p.Nome, p.Preco, c.Descricao}\left( \pi_{p.Nome, p.Preco, p.Categoria\_idCategoria}(\sigma_{p.Preco > 200}(Produto)) \bowtie \sigma_{c.Descricao = \text{'Informática'}}(Categoria) \right)$
+  - **LaTeX**: Código tipográfico formatado para relatórios;
+  - **ASCII**: Notação textual pura (`PI`, `SIGMA`, `JOIN`).
+
+### 5. Remodelação Completa de UI/UX em Tema Claro Editorial
+- **Visual Moderno e Funcional**: Baseado nas melhores práticas de design de ferramentas de engenharia de software (estilo editorial / minimalismo utilitário).
+- **Paleta de Alto Contraste**: Fundo claro e limpo (`#f8f9fa`), cartões brancos com bordas sutis (`#e2e8f0`), tipografia escura com legibilidade máxima (`#0f172a`), sem gradientes artificiais ou sombras pesadas.
+- **Badges Semânticos Padronizados**: Cores pastéis suaves e calibradas para cada operador relacional ($\pi$ índigo, $\sigma$ âmbar, $\bowtie$ esmeralda, $\times$ vermelho, $\▤$ ardósia).
+- **Nova aba "Heurísticas (22/10)"**: Painel dedicado explicando minuciosamente o push-down de seleção e projeção para a consulta em execução.
 
 ---
 
 ## Roteiro de Demonstração / Apresentação
 
-1. **Executar a aplicação**:
+1. **Iniciar a aplicação**:
    - Dê dois cliques em `iniciar.cmd` (Windows) ou execute `python3 server.py` (Linux/Mac).
-   - Acesse `http://localhost:3000`.
+   - Acesse no navegador: `http://localhost:3000`.
 
-2. **Exemplo 1: Produtos por preço (Consulta Unária com Seleção e Projeção)**:
-   - Carregue o exemplo `Produtos por preço`.
+2. **Exemplo 1: Produtos e categorias (Push-down de Seleção e Projeção com INNER JOIN)**:
+   - No dropdown de exemplos, selecione `Produtos e categorias`.
    - Clique em **Executar** (<kbd>Ctrl</kbd> + <kbd>Enter</kbd>).
-   - Na aba **Álgebra Relacional**: confira $\pi_{Nome, Preco}(\sigma_{Preco > 200 \land QuantEstoque \ge 15}(Produto))$.
-   - Na aba **Grafo de Operadores**: veja a árvore com 3 níveis: $\▤ Produto$ (8 tuplas) $\rightarrow$ $\sigma$ (3 tuplas) $\rightarrow$ $\pi$ (3 tuplas).
-   - Na aba **Ordem de Execução**: confira os 3 passos ordenados de 1 a 3.
-   - Na aba **Resultado da Consulta**: veja os 3 produtos filtrados.
+   - Na aba **Árvore de Operadores**:
+     - Observe no topo o painel com as métricas de otimização: economia de **24,6% no volume em memória**.
+     - Veja que o ramo `Produto` aplica primeiro a seleção $\sigma_{[p.Preco > 200]}$, reduzindo de 8 para 5 tuplas, e em seguida a projeção $\pi$ descartando 3 atributos não utilizados (`idProduto`, `Descricao`, `QuantEstoque`).
+     - Veja que o ramo `Categoria` aplica a seleção $\sigma_{[c.Descricao = 'Informática']}$, reduzindo de 3 para 1 tupla.
+     - A junção $\bowtie$ opera sobre relações já filtradas e estreitas!
+     - Alterne para o modo **Comparativo Lado a Lado** para visualizar a diferença gritante entre a árvore canônica e a otimizada.
+   - Na aba **Heurísticas (22/10)**:
+     - Veja o relatório analítico de cada heurística aplicada com antes/depois de tuplas e colunas.
+   - Na aba **Álgebra Relacional**:
+     - Alterne entre **Álgebra Otimizada** e **Álgebra Canônica** para conferir a expressão formal correspondente.
 
-3. **Exemplo 2: Produtos e categorias (Junção Explícita com INNER JOIN)**:
-   - Carregue o exemplo `Produtos e categorias`.
-   - Na aba **Álgebra Relacional**: veja a junção binária com símbolo $\bowtie_{[p.Categoria\_idCategoria = c.idCategoria]}$.
-   - Na aba **Grafo de Operadores**: observe a bifurcação dos dois ramos (Produto $p$ e Categoria $c$) convergindo no operador de junção $\bowtie$, seguido de $\sigma$ e $\pi$.
-   - Na aba **Ordem de Execução**: confira a sequência de 5 passos (Varredura $p$ $\rightarrow$ Varredura $c$ $\rightarrow$ Junção $R_1 \bowtie R_2$ $\rightarrow$ Filtro WHERE $\rightarrow$ Projeção).
-
-4. **Exemplo 4: Junção no WHERE (Produto Cartesiano Canônico)**:
+3. **Exemplo 2: Junção no WHERE (Evitar Produto Cartesiano + Push-down de Seleção)**:
    - Carregue o exemplo `Junção no WHERE`.
-   - Na aba **Álgebra Relacional**: note o operador de Produto Cartesiano $\times$ na expressão: $(Produto \text{ AS } p \times Categoria \text{ AS } c)$ com a condição de junção dentro da seleção $\sigma$.
-   - Na aba **Grafo de Operadores**: veja o nó $\times$ combinando todas as tuplas antes da filtragem.
+   - Clique em **Executar**.
+   - Note as métricas: **-35% de tuplas intermediárias** e **-60,1% de dados em memória**!
+   - Na árvore canônica, é gerado um produto cartesiano de 24 tuplas ($8 \times 3$).
+   - Na árvore otimizada, a condição `p.Preco < 300` é empurrada para a relação `Produto`, reduzindo para 4 tuplas, e a condição `p.Categoria_idCategoria = c.idCategoria` converte o produto em junção interna!
+   - Não há formação do produto cartesiano de 24 tuplas.
 
-5. **Exemplo 3: Pedidos por cliente (Junção Múltipla com 3 Tabelas)**:
+4. **Exemplo 3: Pedidos por cliente (Junção Tripla com Push-down de Projeção Extensiva)**:
    - Carregue `Pedidos por cliente`.
-   - Observe a árvore combinando as 3 relações (Cliente, Pedido e Status) em 7 passos sequenciais com fluxo de dados transparente.
+   - Note a economia de **45,7% de volume de dados em memória**: colunas pesadas de `Cliente` (como `Email`, `Senha`, `Nascimento`, `DataRegistro`) são descartadas logo na folha antes das duas junções subsequentes.
 
 ---
 
 ## Validação e Testes Automatizados
 
-Foram executados **22 testes unitários e de integração** com 100% de aprovação:
+Foram executados **23 testes automatizados** com 100% de aprovação cobrindo toda a cadeia:
 
 ```bash
 python3 -B -m unittest discover -s tests -v
@@ -90,9 +102,14 @@ python3 -B -m unittest discover -s tests -v
 
 Cobertura dos testes:
 - Análise léxica, sintática recursiva e validações semânticas da Entrega 1.
-- Conversão da álgebra relacional (Unicode, LaTeX e ASCII).
-- Estrutura hierárquica do grafo de operadores e nós canônicos.
-- Ordenação pós-ordem do plano de execução.
-- Avaliação e contagem de tuplas pelo executor em memória.
-- Testes da API HTTP (`/api/process`, `/api/catalog`, `/api/health`).
-- Verificação de sintaxe do front-end com `node --check app.js`.
+- Conversão da álgebra relacional canônica da Entrega 2.
+- Construção do grafo não otimizado e plano determinístico pós-ordem.
+- Avaliação in-memory sobre o catálogo `BD_Vendas`.
+- **Nova cobertura da Entrega 3**:
+  - Testes do módulo `consulta/optimizer.py`.
+  - Verificação do push-down de seleção unária ($\sigma$).
+  - Verificação do push-down de projeção antecipada ($\pi$).
+  - Conversão de produto cartesiano em junção sob o `WHERE`.
+  - Garantia de equivalência exata dos resultados finais entre os planos canônico e otimizado.
+  - Testes de resposta da API HTTP `/api/process` com a chave `optimization`.
+  - Validação de sintaxe JavaScript com `node --check app.js`.

@@ -1,5 +1,5 @@
 // Processador de Consultas: Interface de controle e inspeção técnica em JavaScript.
-// Entrega 2 (20/10/2026): Álgebra Relacional Canônica, Árvore de Operadores e Ordem de Execução.
+// Entrega 3 (22/10/2026): Heurísticas de Seleção (Redução de Tuplas) e Projeção (Redução de Atributos).
 
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -7,7 +7,9 @@ const number = value => Number(value ?? 0).toLocaleString('pt-BR');
 
 let schema = {}, sampleCounts = {}, examples = [], requestSequence = 0;
 let analysis = null, activeTab = 'graph', selectedTable = null, lastSql = '';
-let algebraFormat = 'unicode';
+let algebraFormat = 'unicode', algebraMode = 'optimized'; // 'optimized' | 'canonical'
+let graphViewMode = 'optimized'; // 'optimized' | 'canonical' | 'comparison'
+let planViewMode = 'optimized'; // 'optimized' | 'canonical'
 
 // Navegação do catálogo pela barra lateral
 $('#table-nav').addEventListener('click', event => {
@@ -19,7 +21,7 @@ $('#table-nav').addEventListener('click', event => {
 // Delegação de cliques no painel principal
 $('#panel').addEventListener('click', event => {
   // Seleção de card no esquema
-  const card = event.target.closest('.schema-card');
+  const card = event.target.closest('.schema-table-card');
   if (card) {
     const table = card.id.replace('schema-', '');
     selectTable(selectedTable === table ? null : table);
@@ -34,24 +36,53 @@ $('#panel').addEventListener('click', event => {
     return;
   }
 
+  // Trocador de modo da Álgebra Relacional (Otimizada vs Canônica)
+  const algebraModeBtn = event.target.closest('[data-algebra-mode]');
+  if (algebraModeBtn) {
+    algebraMode = algebraModeBtn.dataset.algebraMode;
+    renderAlgebra();
+    return;
+  }
+
+  // Trocador de visualização do Grafo (Otimizado / Canônico / Comparativo)
+  const graphViewBtn = event.target.closest('[data-graph-view]');
+  if (graphViewBtn) {
+    graphViewMode = graphViewBtn.dataset.graphView;
+    renderGraph();
+    return;
+  }
+
+  // Trocador de visualização do Plano (Otimizado vs Canônico)
+  const planViewBtn = event.target.closest('[data-plan-mode]');
+  if (planViewBtn) {
+    planViewMode = planViewBtn.dataset.planMode;
+    renderPlan();
+    return;
+  }
+
   // Copiar expressão de álgebra relacional
   const copyBtn = event.target.closest('#copy-algebra-btn');
-  if (copyBtn && analysis?.algebra) {
-    const textToCopy = analysis.algebra[algebraFormat] || analysis.algebra.unicode;
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      const status = $('#copy-status');
-      if (status) {
-        status.hidden = false;
-        setTimeout(() => { status.hidden = true; }, 2000);
-      }
-    });
+  if (copyBtn && analysis) {
+    const algObj = (algebraMode === 'optimized' && analysis.optimization?.algebra)
+      ? analysis.optimization.algebra
+      : analysis.algebra;
+    const textToCopy = algObj ? (algObj[algebraFormat] || algObj.unicode) : '';
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        const status = $('#copy-status');
+        if (status) {
+          status.hidden = false;
+          setTimeout(() => { status.hidden = true; }, 2000);
+        }
+      });
+    }
   }
 });
 
 // Acessibilidade por teclado nos cards do esquema (Enter ou Espaço)
 $('#panel').addEventListener('keydown', event => {
   if (event.key === 'Enter' || event.key === ' ') {
-    const card = event.target.closest('.schema-card');
+    const card = event.target.closest('.schema-table-card');
     if (card) {
       event.preventDefault();
       const table = card.id.replace('schema-', '');
@@ -105,7 +136,7 @@ async function run() {
 
   $('#error').hidden = true;
   $('#status').classList.remove('pending');
-  $('#status').textContent = 'Processando consulta no motor Python...';
+  $('#status').textContent = 'Processando consulta e aplicando heurísticas de otimização no motor Python...';
   $('#run').disabled = true;
   $('#run').innerHTML = '<span>Processando...</span>';
   $('#export').disabled = true;
@@ -118,10 +149,11 @@ async function run() {
     });
 
     if (request !== requestSequence) return;
+
     analysis = result;
     lastSql = sql;
 
-    $('#status').textContent = 'Consulta processada com sucesso: álgebra, árvore canônica e plano calculados.';
+    $('#status').textContent = 'Consulta validada com sucesso: álgebra relacional, grafo otimizado (22/10) e plano calculados.';
 
     const changed = $('#sql').value !== sql;
     $('#export').disabled = changed;
@@ -210,7 +242,7 @@ function exportAnalysis() {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = 'analise-consulta.json';
+  anchor.download = 'analise-consulta-otimizada.json';
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -247,18 +279,33 @@ function renderMetrics() {
     $('#metrics').innerHTML = '';
     return;
   }
+  const opt = analysis.optimization;
   const items = [
     ['Tabelas', analysis.query.tables.length],
-    ['Operadores', analysis.graph?.nodes?.length ?? 0],
-    ['Passos do Plano', analysis.plan?.steps?.length ?? 0],
+    ['Nós (Otimizado)', opt?.graph?.nodes?.length ?? analysis.graph?.nodes?.length ?? 0],
+    ['Passos do Plano', opt?.plan?.steps?.length ?? analysis.plan?.steps?.length ?? 0],
     ['Tuplas Resultantes', analysis.result?.rowCount ?? 0],
   ];
+
+  let savingsHtml = '';
+  if (opt?.metrics) {
+    const m = opt.metrics;
+    if (m.savedCells > 0 || m.savedTuples > 0) {
+      savingsHtml = `
+        <div class="telemetry-badge-savings" title="Economia de volume em memória intermediária obtida pelas heurísticas de 22/10">
+          <span>⚡ Otimização 22/10:</span>
+          <span>${m.cellReductionPercent > 0 ? `-${m.cellReductionPercent}% células` : `-${m.tupleReductionPercent}% tuplas`}</span>
+        </div>
+      `;
+    }
+  }
+
   $('#metrics').innerHTML = items.map(([label, value]) => `
     <div class="telemetry-item">
       <span class="telemetry-label">${label}:</span>
       <span class="telemetry-val">${number(value)}</span>
     </div>
-  `).join('');
+  `).join('') + savingsHtml;
 }
 
 function heading(title, subtitle) {
@@ -273,6 +320,7 @@ function renderPanel() {
     return;
   }
   if (activeTab === 'graph') renderGraph();
+  else if (activeTab === 'heuristics') renderHeuristics();
   else if (activeTab === 'algebra') renderAlgebra();
   else if (activeTab === 'plan') renderPlan();
   else if (activeTab === 'results') renderResults();
@@ -280,24 +328,26 @@ function renderPanel() {
 }
 
 // -----------------------------------------------------------------------------
-// Visualização 1: Árvore de Operadores (Grafo Canônico Não Otimizado)
+// Visualização 1: Árvore de Operadores (Grafo Otimizado / Canônico / Comparativo)
 // -----------------------------------------------------------------------------
 function renderGraph() {
-  const graph = analysis.graph;
-  if (!graph || !graph.nodes) {
+  const opt = analysis.optimization;
+  const currentGraph = (graphViewMode === 'optimized' && opt?.graph) ? opt.graph : analysis.graph;
+
+  if (!currentGraph || !currentGraph.nodes) {
     $('#panel').innerHTML = '<div class="empty-state">Grafo de operadores indisponível.</div>';
     return;
   }
 
-  const nodeMap = Object.fromEntries(graph.nodes.map(n => [n.id, n]));
-
-  function renderTreeBranch(nodeId) {
+  function renderTreeBranch(nodeId, graphObj) {
+    const nodeMap = Object.fromEntries(graphObj.nodes.map(n => [n.id, n]));
     const node = nodeMap[nodeId];
     if (!node) return '';
 
     const badgeClass = `op-badge-${node.type}`;
+    const hasHeuristic = Boolean(node.heuristic);
     const cardHtml = `
-      <div class="tree-node-card ${node.type === 'scan' ? 'is-leaf' : ''}" id="tree-node-${node.id}">
+      <div class="tree-node-card ${node.type === 'scan' ? 'is-leaf' : ''} ${hasHeuristic ? 'has-heuristic' : ''}" id="tree-node-${node.id}">
         <div class="node-badge-col">
           <span class="node-symbol ${badgeClass}" title="Operador: ${escape(node.name)}">${escape(node.symbol)}</span>
         </div>
@@ -306,6 +356,7 @@ function renderGraph() {
             <span class="node-type-label">${escape(node.name)}</span>
             <span class="node-count-badge">${number(node.tuplesCount ?? 0)} tuplas</span>
           </div>
+          ${node.heuristicLabel ? `<span class="node-heuristic-badge">${escape(node.heuristicLabel)}</span>` : ''}
           <div class="node-predicate-line">
             <code>${escape(node.predicate || node.label)}</code>
           </div>
@@ -331,7 +382,7 @@ function renderGraph() {
             <span class="connector-line"></span>
           </div>
           <div class="tree-children single-child">
-            ${renderTreeBranch(node.children[0])}
+            ${renderTreeBranch(node.children[0], graphObj)}
           </div>
         </div>
       `;
@@ -346,7 +397,7 @@ function renderGraph() {
         ${cardHtml}
         <div class="tree-connector binary-fork-connector" aria-hidden="true">
           <span class="connector-line"></span>
-          <span class="connector-telemetry">▲ combinação relacional</span>
+          <span class="connector-telemetry">▲ combinação binária</span>
           <span class="connector-line"></span>
         </div>
         <div class="tree-branches-grid">
@@ -354,56 +405,277 @@ function renderGraph() {
             <div class="branch-label">
               <span>Ramo Esquerdo (${number(leftChild?.tuplesCount ?? 0)} tuplas)</span>
             </div>
-            ${renderTreeBranch(node.children[0])}
+            ${renderTreeBranch(node.children[0], graphObj)}
           </div>
           <div class="tree-branch-col branch-right">
             <div class="branch-label">
               <span>Ramo Direito (${number(rightChild?.tuplesCount ?? 0)} tuplas)</span>
             </div>
-            ${renderTreeBranch(node.children[1])}
+            ${renderTreeBranch(node.children[1], graphObj)}
           </div>
         </div>
       </div>
     `;
   }
 
-  $('#panel').innerHTML = heading('Árvore de Operadores (Grafo Canônico Não Otimizado)', 'Estrutura algébrica em árvore: folhas representam leituras de tabelas e nós intermediários realizam junções, filtros e projeções.') + `
+  // Dashboard de Heurísticas no topo do Grafo
+  let heuristicsBanner = '';
+  if (opt?.metrics) {
+    const m = opt.metrics;
+    const h = opt.heuristics;
+    heuristicsBanner = `
+      <div class="heuristics-dashboard-card">
+        <div class="heuristics-card-head">
+          <div class="heuristics-title-group">
+            <span style="font-size: 16px;">⚡</span>
+            <h3>Heurísticas de Otimização Aplicadas (Entrega 22/10/2026)</h3>
+            <span class="heuristics-pill-delivery">Disponível</span>
+          </div>
+        </div>
+
+        <div class="heuristics-metrics-strip">
+          <div class="heuristic-stat-box">
+            <span class="h-stat-label">Redução de Tuplas Intermediárias</span>
+            <span class="h-stat-value">${m.canonicalIntermediateTuples} ➔ ${m.optimizedIntermediateTuples}</span>
+            <span class="h-stat-sub">${m.tupleReductionPercent > 0 ? `-${m.tupleReductionPercent}% tuplas intermediárias` : 'Filtradas na folha'}</span>
+          </div>
+          <div class="heuristic-stat-box">
+            <span class="h-stat-label">Redução de Volume em Memória</span>
+            <span class="h-stat-value">${m.canonicalIntermediateCells} ➔ ${m.optimizedIntermediateCells} cél.</span>
+            <span class="h-stat-sub">${m.cellReductionPercent > 0 ? `-${m.cellReductionPercent}% memória intermediária` : 'Atributos estreitados'}</span>
+          </div>
+          <div class="heuristic-stat-box">
+            <span class="h-stat-label">Push-Down de Seleção (σ)</span>
+            <span class="h-stat-value">${h.tupleReduction.appliedCount} aplicada(s)</span>
+            <span class="h-stat-sub">Filtros aplicados antes de junções</span>
+          </div>
+          <div class="heuristic-stat-box">
+            <span class="h-stat-label">Push-Down de Projeção (π)</span>
+            <span class="h-stat-value">${h.attributeReduction.appliedCount} aplicada(s)</span>
+            <span class="h-stat-sub">Colunas não usadas descartadas</span>
+          </div>
+        </div>
+
+        ${h.tupleReduction.items.length > 0 || h.attributeReduction.items.length > 0 ? `
+          <div class="heuristics-breakdown-list">
+            ${h.tupleReduction.items.map(it => `
+              <div class="heuristic-item-line">
+                <span class="h-badge-sel">σ Push-down</span>
+                <span><strong>${escape(it.alias)}</strong>: predicado <code>${escape(it.predicate)}</code> antecipado (${it.initialTuples} ➔ ${it.finalTuples} tuplas).</span>
+              </div>
+            `).join('')}
+            ${h.attributeReduction.items.map(it => `
+              <div class="heuristic-item-line">
+                <span class="h-badge-proj">π Push-down</span>
+                <span><strong>${escape(it.alias)}</strong>: mantidos ${it.kept.length} atributos (${escape(it.kept.join(', '))}); descartadas ${it.discarded.length} colunas redundantes (${escape(it.discarded.join(', '))}).</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  let viewportContent = '';
+  if (graphViewMode === 'comparison') {
+    viewportContent = `
+      <div class="side-by-side-trees">
+        <div class="tree-column">
+          <div class="tree-col-head">
+            <span>Árvore Canônica (Não Otimizada - 20/10)</span>
+            <span>${analysis.graph.nodes.length} nós</span>
+          </div>
+          <div class="tree-viewport">
+            ${renderTreeBranch(analysis.graph.rootId, analysis.graph)}
+          </div>
+        </div>
+        <div class="tree-column">
+          <div class="tree-col-head">
+            <span style="color: #0f766e;">⚡ Árvore Otimizada (Heurísticas - 22/10)</span>
+            <span style="color: #0f766e;">${opt.graph.nodes.length} nós</span>
+          </div>
+          <div class="tree-viewport">
+            ${renderTreeBranch(opt.graph.rootId, opt.graph)}
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    viewportContent = `
+      <div class="tree-viewport" role="region" aria-label="Visualização em árvore do grafo de operadores">
+        ${renderTreeBranch(currentGraph.rootId, currentGraph)}
+      </div>
+    `;
+  }
+
+  $('#panel').innerHTML = heading(
+    graphViewMode === 'optimized'
+      ? 'Árvore de Operadores Otimizada (Heurísticas de Seleção e Projeção — 22/10)'
+      : (graphViewMode === 'comparison' ? 'Comparativo de Árvores de Operadores (Canônica vs Otimizada)' : 'Árvore de Operadores Canônica (Não Otimizada — 20/10)'),
+    'Representação algébrica em memória onde as folhas representam leituras e os nós intermediários realizam junções, seleções e projeções.'
+  ) + `
     <div class="graph-container">
-      <div class="graph-legend">
-        <span class="legend-title">Convenção do fluxo de dados:</span>
-        <div class="legend-tags">
-          <span class="legend-tag"><b class="op-badge-proj">π</b> Projeção</span>
-          <span class="legend-tag"><b class="op-badge-sel">σ</b> Seleção</span>
-          <span class="legend-tag"><b class="op-badge-join">⋈</b> Junção</span>
-          <span class="legend-tag"><b class="op-badge-prod">×</b> Produto Cartesiano</span>
-          <span class="legend-tag"><b class="op-badge-scan">▤</b> Varredura (Scan)</span>
+      <div class="graph-control-bar">
+        <div class="graph-view-switcher" role="group" aria-label="Modo de visualização da árvore">
+          <button class="graph-view-btn ${graphViewMode === 'optimized' ? 'active' : ''}" data-graph-view="optimized">
+            ⚡ Árvore Otimizada (22/10)
+          </button>
+          <button class="graph-view-btn ${graphViewMode === 'canonical' ? 'active' : ''}" data-graph-view="canonical">
+            Árvore Canônica (20/10)
+          </button>
+          <button class="graph-view-btn ${graphViewMode === 'comparison' ? 'active' : ''}" data-graph-view="comparison">
+            Comparativo Lado a Lado
+          </button>
+        </div>
+
+        <div class="graph-legend">
+          <span class="legend-title">Convenção:</span>
+          <div class="legend-tags">
+            <span class="legend-tag"><b class="op-badge-proj">π</b> Projeção</span>
+            <span class="legend-tag"><b class="op-badge-sel">σ</b> Seleção</span>
+            <span class="legend-tag"><b class="op-badge-join">⋈</b> Junção</span>
+            <span class="legend-tag"><b class="op-badge-prod">×</b> Produto Cartesiano</span>
+            <span class="legend-tag"><b class="op-badge-scan">▤</b> Varredura (Scan)</span>
+          </div>
         </div>
       </div>
 
-      <div class="tree-viewport" role="region" aria-label="Visualização em árvore do grafo de operadores">
-        ${renderTreeBranch(graph.rootId)}
-      </div>
+      ${heuristicsBanner}
+      ${viewportContent}
 
       <div class="technical-footnote">
-        <strong>Estratégia Canônica:</strong> As tabelas são varridas na base, unidas por produtos ou junções teta, filtradas pela seleção do WHERE e restringidas pela projeção final. As próximas entregas (22/10 e 27/10) aplicarão heurísticas para empurrar seleções e projeções para as folhas.
+        <strong>Princípio Heurístico (Elmasri & Navathe / Codd):</strong> As operações que reduzem o tamanho dos resultados intermediários são executadas primeiro. <em>Seleções unárias (σ)</em> são empurradas para as folhas para reduzir a cardinalidade das tuplas antes das junções, e <em>projeções intermediárias (π)</em> eliminam colunas não referenciadas para reduzir a largura das tuplas em memória.
       </div>
     </div>
   `;
 }
 
 // -----------------------------------------------------------------------------
-// Visualização 2: Álgebra Relacional Canônica
+// Visualização 2: Heurísticas Dedicadas (22/10/2026)
+// -----------------------------------------------------------------------------
+function renderHeuristics() {
+  const opt = analysis.optimization;
+  if (!opt) {
+    $('#panel').innerHTML = '<div class="empty-state">Informações de heurísticas indisponíveis.</div>';
+    return;
+  }
+
+  const m = opt.metrics;
+  const h = opt.heuristics;
+
+  $('#panel').innerHTML = heading('Heurísticas de Otimização: Seleção e Projeção (Entrega 22/10/2026)', 'Detalhamento algorítmico do push-down de operadores para minimização de I/O e memória intermediária.') + `
+    <div class="algebra-container">
+      <div class="heuristics-dashboard-card" style="background: #ffffff; border-color: var(--border-default);">
+        <div class="heuristics-metrics-strip">
+          <div class="heuristic-stat-box">
+            <span class="h-stat-label">Tuplas Intermediárias</span>
+            <span class="h-stat-value">${m.canonicalIntermediateTuples} ➔ ${m.optimizedIntermediateTuples}</span>
+            <span class="h-stat-sub">Economia de ${m.savedTuples} tuplas (${m.tupleReductionPercent}%)</span>
+          </div>
+          <div class="heuristic-stat-box">
+            <span class="h-stat-label">Células em Memória (Tuplas × Colunas)</span>
+            <span class="h-stat-value">${m.canonicalIntermediateCells} ➔ ${m.optimizedIntermediateCells}</span>
+            <span class="h-stat-sub">Economia de ${m.savedCells} células (${m.cellReductionPercent}%)</span>
+          </div>
+          <div class="heuristic-stat-box">
+            <span class="h-stat-label">Push-Down de Seleção (σ)</span>
+            <span class="h-stat-value">${h.tupleReduction.appliedCount} predicado(s)</span>
+            <span class="h-stat-sub">Redução precoce de cardinalidade</span>
+          </div>
+          <div class="heuristic-stat-box">
+            <span class="h-stat-label">Push-Down de Projeção (π)</span>
+            <span class="h-stat-value">${h.attributeReduction.appliedCount} projeção(ões)</span>
+            <span class="h-stat-sub">Estreitamento de tuplas</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="parser-columns">
+        <div class="parser-card">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span class="op-glyph op-badge-sel">σ</span>
+            <h3 style="margin: 0;">1. Heurística de Redução de Tuplas</h3>
+          </div>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px; line-height: 1.5;">
+            Predicados unários presentes na cláusula WHERE são empurrados para baixo na árvore, sendo avaliados imediatamente após a leitura (scan) de cada tabela base e antes de qualquer produto ou junção.
+          </p>
+          ${h.tupleReduction.items.length === 0 ? `
+            <div style="font-size: 12px; color: var(--text-muted); background: #f8fafc; padding: 10px; border-radius: 4px;">
+              Nenhum predicado unário nesta consulta (seleções aplicadas nas junções ou sem restrição WHERE).
+            </div>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${h.tupleReduction.items.map(it => `
+                <div style="padding: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px;">
+                  <div style="font-weight: 700; font-size: 12px; color: #92400e; margin-bottom: 4px;">
+                    Relação: ${escape(it.table)} (alias: ${escape(it.alias)})
+                  </div>
+                  <div style="font-size: 11px; margin-bottom: 4px;">
+                    Predicado: <code>${escape(it.predicate)}</code>
+                  </div>
+                  <div style="font-size: 11px; color: #78350f;">
+                    Resultado: de <strong>${it.initialTuples} tuplas</strong> para <strong>${it.finalTuples} tuplas</strong> (${it.reductionTuples} tuplas descartadas antes da junção).
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+
+        <div class="parser-card">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span class="op-glyph op-badge-proj">π</span>
+            <h3 style="margin: 0;">2. Heurística de Redução de Atributos</h3>
+          </div>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px; line-height: 1.5;">
+            Projeções antecipadas são inseridas logo acima das folhas para descartar atributos redundantes não necessários para junções subsequentes nem para o SELECT final, diminuindo a largura das tuplas em memória.
+          </p>
+          ${h.attributeReduction.items.length === 0 ? `
+            <div style="font-size: 12px; color: var(--text-muted); background: #f8fafc; padding: 10px; border-radius: 4px;">
+              Todos os atributos da relação são necessários para a consulta atual.
+            </div>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${h.attributeReduction.items.map(it => `
+                <div style="padding: 10px; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 4px;">
+                  <div style="font-weight: 700; font-size: 12px; color: #3730a3; margin-bottom: 4px;">
+                    Relação: ${escape(it.table)} (alias: ${escape(it.alias)})
+                  </div>
+                  <div style="font-size: 11px; margin-bottom: 4px;">
+                    Atributos mantidos (${it.kept.length}): <code>${escape(it.kept.join(', '))}</code>
+                  </div>
+                  <div style="font-size: 11px; color: #4338ca;">
+                    Descartados precocemente (${it.discarded.length}): <code>${escape(it.discarded.join(', '))}</code> (de ${it.columnsBefore} para ${it.columnsAfter} colunas).
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+      </div>
+
+      <div class="technical-footnote">
+        <strong>Conclusão Técnica:</strong> O plano otimizado produz exatamente os mesmos resultados da consulta canônica, porém com um consumo significativamente menor de memória e tempo de processamento por reduzir o produto cartesiano e descartar dados inúteis na primeira oportunidade.
+      </div>
+    </div>
+  `;
+}
+
+// -----------------------------------------------------------------------------
+// Visualização 3: Álgebra Relacional (Otimizada e Canônica)
 // -----------------------------------------------------------------------------
 function renderAlgebra() {
-  const algebra = analysis.algebra;
-  if (!algebra) {
+  const opt = analysis.optimization;
+  const currentAlgebra = (algebraMode === 'optimized' && opt?.algebra) ? opt.algebra : analysis.algebra;
+
+  if (!currentAlgebra) {
     $('#panel').innerHTML = '<div class="empty-state">Álgebra relacional indisponível.</div>';
     return;
   }
 
-  const formulaText = algebra[algebraFormat] || algebra.unicode;
+  const formulaText = currentAlgebra[algebraFormat] || currentAlgebra.unicode;
 
-  // Formatação com destaques tipográficos para operadores
+  // Destaques tipográficos
   const highlighted = escape(formulaText)
     .replace(/(π|PI)/g, '<span class="sym-proj">$1</span>')
     .replace(/(σ|SIGMA)/g, '<span class="sym-sel">$1</span>')
@@ -411,17 +683,28 @@ function renderAlgebra() {
     .replace(/(×|CROSS)/g, '<span class="sym-prod">$1</span>');
 
   const components = [
-    ['Projeção (π)', algebra.columns.join(', '), 'Atributos mantidos na relação resultante final'],
-    ['Seleção (σ)', analysis.query.where ? analysis.query.predicateLabels.join(' ∧ ') : 'Sem predicado WHERE', 'Filtro de restrição booleano aplicado às tuplas'],
-    ['Relações (FROM/JOIN)', analysis.query.tables.map(t => `${t.table} AS ${t.alias}`).join(', '), 'Tabelas base do catálogo BD_Vendas lidas da base'],
-    ['Operações Binárias', algebra.joinCount > 0 ? `${algebra.joinCount} junção(ões) / produto(s)` : 'Consulta sobre relação unária', 'Combinações horizontais na árvore canônica'],
+    ['Projeção Final (π)', currentAlgebra.columns.join(', '), 'Atributos mantidos no resultado final da consulta'],
+    ['Seleção (σ)', analysis.query.where ? analysis.query.predicateLabels.join(' ∧ ') : 'Sem predicado WHERE', 'Filtros aplicados para restringir tuplas'],
+    ['Relações Base', analysis.query.tables.map(t => `${t.table} AS ${t.alias}`).join(', '), 'Tabelas do catálogo BD_Vendas lidas na base'],
+    ['Modo de Execução', algebraMode === 'optimized' ? 'Álgebra Otimizada (Heurísticas 22/10)' : 'Álgebra Canônica (Não Otimizada)', 'Estratégia algébrica de avaliação'],
   ];
 
-  $('#panel').innerHTML = heading('Expressão em Álgebra Relacional Canônica', 'Conversão matemática rigorosa da consulta SQL para a notação relacional formal de Codd.') + `
+  $('#panel').innerHTML = heading(
+    algebraMode === 'optimized' ? 'Expressão em Álgebra Relacional Otimizada (Heurísticas 22/10)' : 'Expressão em Álgebra Relacional Canônica (20/10)',
+    'Conversão formal da consulta SQL para a notação relacional matemática de Codd.'
+  ) + `
     <div class="algebra-container">
       <div class="formula-card">
         <div class="formula-card-header">
-          <span class="formula-title">Expressão Formal</span>
+          <div class="graph-view-switcher" role="group" aria-label="Modo da álgebra">
+            <button class="graph-view-btn ${algebraMode === 'optimized' ? 'active' : ''}" data-algebra-mode="optimized">
+              ⚡ Álgebra Otimizada (22/10)
+            </button>
+            <button class="graph-view-btn ${algebraMode === 'canonical' ? 'active' : ''}" data-algebra-mode="canonical">
+              Álgebra Canônica (20/10)
+            </button>
+          </div>
+
           <div class="format-toggle" role="group" aria-label="Formato de exibição da álgebra">
             <button class="toggle-btn ${algebraFormat === 'unicode' ? 'active' : ''}" data-format="unicode">Unicode</button>
             <button class="toggle-btn ${algebraFormat === 'latex' ? 'active' : ''}" data-format="latex">LaTeX</button>
@@ -450,57 +733,79 @@ function renderAlgebra() {
       </div>
 
       <div class="technical-footnote">
-        A álgebra canônica segue a ordem estrita: primeiro realiza o produto cartesiano ou junção de todas as relações no FROM, aplica a seleção do WHERE sobre o conjunto resultante e projeta apenas os atributos especificados no SELECT.
+        ${algebraMode === 'optimized'
+          ? '<strong>Álgebra Otimizada:</strong> Reflete a descida (push-down) das seleções para os nós folhas e a inclusão de projeções antecipadas para estreitar as relações antes da combinação binária.'
+          : '<strong>Álgebra Canônica:</strong> Segue a ordem original sem otimização: primeiro realiza o produto/junção de todas as tabelas, aplica a seleção do WHERE no topo e projeta os atributos finais.'}
       </div>
     </div>
   `;
 }
 
 // -----------------------------------------------------------------------------
-// Visualização 3: Ordem de Execução (Plano Bottom-Up)
+// Visualização 4: Ordem de Execução (Plano Bottom-Up)
 // -----------------------------------------------------------------------------
 function renderPlan() {
-  const plan = analysis.plan;
-  if (!plan || !plan.steps) {
+  const opt = analysis.optimization;
+  const currentPlan = (planViewMode === 'optimized' && opt?.plan) ? opt.plan : analysis.plan;
+
+  if (!currentPlan || !currentPlan.steps) {
     $('#panel').innerHTML = '<div class="empty-state">Plano de execução indisponível.</div>';
     return;
   }
 
-  $('#panel').innerHTML = heading('Ordem de Execução da Consulta (Plano Físico)', 'Sequência determinística calculada a partir do percurso pós-ordem (bottom-up) na árvore de operadores.') + `
+  $('#panel').innerHTML = heading(
+    planViewMode === 'optimized' ? 'Ordem de Execução Otimizada (Plano com Heurísticas 22/10)' : 'Ordem de Execução Canônica (Plano Sequencial 20/10)',
+    'Sequência determinística calculada a partir do percurso pós-ordem (bottom-up) na árvore de operadores.'
+  ) + `
+    <div class="graph-control-bar" style="margin-bottom: 14px;">
+      <div class="graph-view-switcher" role="group" aria-label="Modo do plano">
+        <button class="graph-view-btn ${planViewMode === 'optimized' ? 'active' : ''}" data-plan-mode="optimized">
+          ⚡ Plano Otimizado (Heurísticas 22/10)
+        </button>
+        <button class="graph-view-btn ${planViewMode === 'canonical' ? 'active' : ''}" data-plan-mode="canonical">
+          Plano Canônico (Não Otimizado 20/10)
+        </button>
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">
+        Total de Passos: <span class="tuple-counter">${currentPlan.steps.length}</span>
+      </div>
+    </div>
+
     <div class="plan-wrapper">
       <table class="technical-table">
         <thead>
           <tr>
-            <th style="width: 54px;">Passo</th>
-            <th style="width: 140px;">Operador</th>
+            <th style="width: 50px;">Passo</th>
+            <th style="width: 150px;">Operador</th>
             <th>Ação Executada</th>
             <th>Predicado / Expressão</th>
-            <th>Relações (Entrada ➔ Saída)</th>
-            <th style="width: 130px; text-align: right;">Tuplas Emitidas</th>
+            <th>Heurística Aplicada</th>
+            <th style="width: 120px; text-align: right;">Tuplas Emitidas</th>
           </tr>
         </thead>
         <tbody>
-          ${plan.steps.map(step => `
+          ${currentPlan.steps.map(step => `
             <tr>
               <td><span class="step-badge">${step.step}</span></td>
               <td><span class="op-glyph op-badge-${step.type}">${step.operator}</span> <strong>${escape(step.name)}</strong></td>
               <td>${escape(step.operation)}</td>
-              <td><code>${escape(step.predicate || '—')}</code></td>
-              <td><span class="flow-step">${escape(step.input)} ➔ <strong>${escape(step.output)}</strong></span></td>
+              <td><code>${escape(step.predicate || step.target || '—')}</code></td>
+              <td>${step.heuristicLabel ? `<span class="node-heuristic-badge">${escape(step.heuristicLabel)}</span>` : '<span style="color: var(--text-dim);">Nenhuma (Padrão)</span>'}</td>
               <td style="text-align: right;"><span class="tuple-counter">${number(step.rowsProduced)} tuplas</span></td>
             </tr>
           `).join('')}
         </tbody>
       </table>
     </div>
+
     <div class="technical-footnote">
-      Cada nó folha alimenta suas tuplas para o nó pai imediatamente superior. Operadores binários combinam dois fluxos intermediários já processados.
+      Cada nó folha alimenta suas tuplas para o nó pai imediatamente superior. O plano otimizado aplica reduções locais antes de acionar operadores binários mais caros.
     </div>
   `;
 }
 
 // -----------------------------------------------------------------------------
-// Visualização 4: Resultado da Consulta (Dados Avaliados)
+// Visualização 5: Resultado da Consulta (Dados Avaliados)
 // -----------------------------------------------------------------------------
 function renderResults() {
   const result = analysis.result;
@@ -547,13 +852,13 @@ function renderResults() {
       </table>
     </div>
     <div class="technical-footnote">
-      Os dados apresentados foram avaliados em memória pelo executor em Python utilizando os registros didáticos de BD_Vendas.
+      Os dados apresentados foram avaliados em memória pelo executor em Python utilizando os registros didáticos de BD_Vendas. Tanto o plano canônico quanto o plano otimizado geram o mesmo resultado.
     </div>
   `;
 }
 
 // -----------------------------------------------------------------------------
-// Visualização 5: Parser & Validação Semântica
+// Visualização 6: Parser & Validação Semântica
 // -----------------------------------------------------------------------------
 function renderParser() {
   const query = analysis.query;
@@ -601,7 +906,7 @@ function renderParser() {
 }
 
 // -----------------------------------------------------------------------------
-// Visualização 6: Esquema BD_Vendas
+// Visualização 7: Esquema BD_Vendas
 // -----------------------------------------------------------------------------
 function renderSchema() {
   $('#panel').innerHTML = heading('Catálogo BD_Vendas (10 Tabelas)', 'Modelo relacional didático utilizado para validação de escopo, tipos e integridade referencial.') + `
@@ -630,44 +935,44 @@ function renderSchema() {
 }
 
 // -----------------------------------------------------------------------------
-// Visualização 7: Requisitos da Disciplina
+// Visualização 8: Requisitos da Disciplina
 // -----------------------------------------------------------------------------
 function renderDeliveries() {
   const deliveries = [
-    [1, '15/10/2026', 'Interface gráfica existente e funcional', 'Editor SQL, exemplos, navegação e exportação JSON'],
-    [1, '15/10/2026', 'A string é parseada', 'Lexer, parser e estrutura validada da consulta'],
-    [1, '15/10/2026', 'Campos e comandos errados são validados', 'Erros sintáticos, catálogo, ambiguidade, aliases e escopo'],
-    [2, '20/10/2026', 'Conversão para álgebra relacional', 'Expressão canônica em Unicode, LaTeX e componentes'],
-    [2, '20/10/2026', 'Grafo não otimizado', 'Árvore de operadores em memória, visualização e plano de execução'],
-    [3, '22/10/2026', 'Heurísticas de projeção e seleção', 'Filtros e redução de atributos antecipados'],
-    [4, '27/10/2026', 'Demais heurísticas', 'Seletividade, ordem das relações e conversão de produto em junção'],
+    [1, '15/10/2026', 'Interface gráfica existente e funcional', 'Editor SQL, exemplos, navegação e exportação JSON', true],
+    [1, '15/10/2026', 'A string é parseada', 'Lexer, parser e estrutura validada da consulta', true],
+    [1, '15/10/2026', 'Campos e comandos errados são validados', 'Erros sintáticos, catálogo, ambiguidade, aliases e escopo', true],
+    [2, '20/10/2026', 'Conversão para álgebra relacional', 'Expressão canônica em Unicode, LaTeX e componentes', true],
+    [2, '20/10/2026', 'Grafo não otimizado', 'Árvore de operadores em memória, visualização e plano de execução', true],
+    [3, '22/10/2026', 'Aplicação da Heurística Projeção e Seleção', 'Push-down de seleções (redução de tuplas) e push-down de projeções (redução de atributos)', true],
+    [4, '27/10/2026', 'Demais heurísticas', 'Seletividade, reordenação de relações mais restritivas e ajustes finos', false],
   ];
 
-  $('#panel').innerHTML = heading('Requisitos da Disciplina: Banco de Dados II', 'Matriz de entregas conforme as especificações do trabalho prático.') + `
+  $('#panel').innerHTML = heading('Requisitos da Disciplina: Banco de Dados II', 'Matriz de entregas conforme as especificações oficiais do trabalho prático.') + `
     <div class="plan-wrapper">
       <table class="technical-table">
         <thead>
           <tr>
             <th style="width: 100px;">Prazo</th>
-            <th style="width: 260px;">Requisito</th>
-            <th>Descrição Técnica</th>
+            <th style="width: 280px;">Requisito</th>
+            <th>Descrição Técnica Implementada</th>
             <th style="width: 110px;">Situação</th>
           </tr>
         </thead>
         <tbody>
-          ${deliveries.map(([delivery, date, title, description]) => `
+          ${deliveries.map(([delivery, date, title, description, isDone]) => `
             <tr>
-              <td class="date-col">${date}</td>
+              <td class="date-col"><strong>${date}</strong></td>
               <td><strong>${escape(title)}</strong></td>
               <td>${escape(description)}</td>
-              <td><span class="status-badge ${delivery <= 2 ? 'is-done' : 'is-upcoming'}">${delivery <= 2 ? 'Disponível' : 'Etapa futura'}</span></td>
+              <td><span class="status-badge ${isDone ? 'is-done' : 'is-upcoming'}">${isDone ? 'Disponível' : 'Etapa futura'}</span></td>
             </tr>
           `).join('')}
         </tbody>
       </table>
     </div>
     <div class="technical-footnote">
-      A entrega 2 (20/10/2026) contempla formalmente a conversão para álgebra relacional canônica, a construção do grafo de operadores não otimizado, o plano sequencial de execução e a exibição de resultados em tabela.
+      <strong>Entrega Atual (22/10/2026):</strong> As heurísticas de Redução de Tuplas (push-down de seleção) e Redução de Atributos (push-down de projeção) estão implementadas no motor Python e refletidas visualmente na árvore de operadores, álgebra relacional otimizada e plano físico.
     </div>
   `;
 }

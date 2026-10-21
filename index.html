@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0e131b">
-  <meta name="color-scheme" content="dark">
-  <title>Processador de Consultas: Álgebra Relacional e Grafo de Execução</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%23161e2b'/><text x='50%' y='55%' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-size='56' font-weight='bold' fill='%2338bdf8'>⋈</text></svg>">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="light">
+  <title>Processador de Consultas: Álgebra Relacional e Heurísticas de Otimização</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%230f172a'/><text x='50%' y='55%' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-size='56' font-weight='bold' fill='%23ffffff'>⋈</text></svg>">
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
 </head>
@@ -77,7 +77,7 @@
 
         <div class="editor-container">
           <label class="sr-only" for="sql">Consulta SQL</label>
-          <textarea id="sql" spellcheck="false" aria-describedby="sql-help" placeholder="Escreva sua consulta SQL aqui... Ex: SELECT p.Nome, c.Descricao FROM Produto p INNER JOIN Categoria c ON p.Categoria_idCategoria = c.idCategoria"></textarea>
+          <textarea id="sql" spellcheck="false" aria-describedby="sql-help" placeholder="Escreva sua consulta SQL aqui... Ex: SELECT p.Nome, c.Descricao FROM Produto p INNER JOIN Categoria c ON p.Categoria_idCategoria = c.idCategoria WHERE p.Preco > 200"></textarea>
         </div>
 
         <div class="editor-toolbar">
@@ -106,6 +106,9 @@
           <div class="tabs" role="tablist" aria-label="Visualizações do processador">
             <button id="tab-graph" role="tab" aria-selected="true" aria-controls="panel" data-tab="graph">
               <span class="tab-symbol">⋈</span> Árvore de Operadores
+            </button>
+            <button id="tab-heuristics" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="heuristics">
+              <span class="tab-symbol">⚡</span> Heurísticas (22/10) <span class="tab-tag-new">Novo</span>
             </button>
             <button id="tab-algebra" role="tab" aria-selected="false" aria-controls="panel" tabindex="-1" data-tab="algebra">
               <span class="tab-symbol">π</span> Álgebra Relacional
@@ -139,15 +142,15 @@
     <div class="statusbar-left">
       <span>Banco de Dados II: Processador de Consultas</span>
       <span class="statusbar-sep">/</span>
-      <span>Entrega 2 (20/10/2026): Álgebra Relacional e Árvore Canônica</span>
+      <span>Entrega 3 (22/10/2026): Heurísticas de Seleção e Projeção</span>
     </div>
     <div class="statusbar-right">
       <span class="operator-guide">
-        <span class="op-chip op-proj">π Projeção</span>
-        <span class="op-chip op-sel">σ Seleção</span>
-        <span class="op-chip op-join">⋈ Junção</span>
-        <span class="op-chip op-prod">× Produto</span>
-        <span class="op-chip op-scan">▤ Varredura</span>
+        <span class="op-chip op-badge-proj">π Projeção</span>
+        <span class="op-chip op-badge-sel">σ Seleção</span>
+        <span class="op-chip op-badge-join">⋈ Junção</span>
+        <span class="op-chip op-badge-prod">× Produto</span>
+        <span class="op-chip op-badge-scan">▤ Varredura</span>
       </span>
       <span class="statusbar-sep">/</span>
       <span>Motor: Python</span>

@@ -70,9 +70,51 @@ class ProcessorTests(unittest.TestCase):
 
     def test_second_delivery_builds_algebra_graph_and_plan(self):
         result = process_query("SELECT Nome FROM Produto")
-        self.assertEqual(set(result), {"query", "algebra", "graph", "plan", "result", "backend"})
+        self.assertEqual(set(result), {"query", "algebra", "graph", "plan", "result", "backend", "optimization"})
         self.assertEqual(result["backend"], "Python")
-        self.assertNotIn("optimizedResult", result)
+        self.assertTrue(result["optimization"]["applied"])
+
+    def test_third_delivery_heuristics_selection_and_projection(self):
+        # 1. Push-down de seleção e projeção precoce com INNER JOIN
+        sql = "SELECT p.Nome, p.Preco, c.Descricao FROM Produto AS p INNER JOIN Categoria AS c ON p.Categoria_idCategoria = c.idCategoria WHERE p.Preco > 200 AND c.Descricao = 'Informática'"
+        res = process_query(sql)
+        opt = res["optimization"]
+
+        self.assertTrue(opt["applied"])
+        self.assertEqual(opt["deliveryDate"], "22/10/2026")
+        self.assertIn("Redução de Tuplas", opt["heuristics"]["tupleReduction"]["name"])
+        self.assertIn("Redução de Atributos", opt["heuristics"]["attributeReduction"]["name"])
+
+        # Verifica push-downs aplicados
+        sel_items = opt["heuristics"]["tupleReduction"]["items"]
+        self.assertTrue(any(s["alias"] == "p" and "Preco > 200" in s["predicate"] for s in sel_items))
+        self.assertTrue(any(s["alias"] == "c" and "Informática" in s["predicate"] for s in sel_items))
+
+        # Verifica redução de atributos (descarte precoce de colunas não utilizadas)
+        proj_items = opt["heuristics"]["attributeReduction"]["items"]
+        p_proj = next((pj for pj in proj_items if pj["alias"] == "p"), None)
+        self.assertIsNotNone(p_proj)
+        self.assertIn("p.Nome", p_proj["kept"])
+        self.assertIn("p.Categoria_idCategoria", p_proj["kept"])
+        self.assertIn("p.Descricao", p_proj["discarded"])
+
+        # O resultado do plano otimizado deve ser matematicamente idêntico ao plano canônico
+        self.assertEqual(opt["result"]["rows"], res["result"]["rows"])
+        self.assertEqual(opt["result"]["rowCount"], 3)
+
+        # 2. Conversão de Produto Cartesiano em Junção sob o WHERE (evitar produto cartesiano)
+        sql_cartesian = "SELECT p.Nome, c.Descricao FROM Produto AS p, Categoria AS c WHERE (p.Categoria_idCategoria = c.idCategoria AND p.Preco < 300)"
+        res_cart = process_query(sql_cartesian)
+        opt_cart = res_cart["optimization"]
+        self.assertGreater(opt_cart["metrics"]["savedTuples"], 0)
+        self.assertGreater(opt_cart["metrics"]["tupleReductionPercent"], 0)
+        self.assertEqual(opt_cart["result"]["rows"], res_cart["result"]["rows"])
+
+        # 3. Formato da álgebra relacional otimizada
+        self.assertIn("π[p.Nome, c.Descricao]", opt_cart["algebra"]["unicode"])
+        self.assertIn("⋈[p.Categoria_idCategoria = c.idCategoria]", opt_cart["algebra"]["unicode"])
+        self.assertIn("σ[p.Preco < 300]", opt_cart["algebra"]["unicode"])
+
 
     def test_relational_algebra_formats(self):
         # 1. Consulta simples
