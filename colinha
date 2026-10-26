@@ -1,0 +1,37 @@
+
+A • SELECT SIMPLES
+SELECT Nome, Preco FROM Produto;
+ÁLGEBRA CANÔNICA
+π[Nome, Preco](Produto)
+
+B • WHERE + AND
+SELECT Nome FROM Produto
+WHERE (Preco > 200 AND QuantEstoque >= 15);
+ÁLGEBRA CANÔNICA
+π[Nome](σ[Preco > 200 ∧ QuantEstoque ≥ 15](Produto))
+
+C • INNER JOIN + FILTRO
+SELECT p.Nome, c.Descricao FROM Produto p
+INNER JOIN Categoria c
+ON p.Categoria_idCategoria = c.idCategoria
+WHERE p.Preco > 200;
+ÁLGEBRA CANÔNICA
+π[p.Nome, c.Descricao](
+ σ[p.Preco > 200](p ⋈[p.Categoria_idCategoria = c.idCategoria] c))
+Otimização: σ do preço desce para Produto; π preserva Nome + chaves da junção.
+
+D • JOIN NO WHERE (× → ⋈)
+SELECT p.Nome FROM Produto p, Categoria c
+WHERE p.Categoria_idCategoria = c.idCategoria;
+ÁLGEBRA CANÔNICA
+Canônica: π[p.Nome](σ[p.Categoria_idCategoria = c.idCategoria](p × c))
+Otimizada*: π[p.Nome](p ⋈[p.Categoria_idCategoria = c.idCategoria] c)
+*Forma conceitual; o otimizador também pode inserir projeções intermediárias.
+
+E • ERROS PARA DEMONSTRAR
+SELECT Salario FROM Produto;
+SELECT Nome FROM Produto p, Cliente c;
+SELECT Nome FROM Produto WHERE Preco != 200;
+
+------implementar------
+imular registro de tabelas (valores brutos) - ultima heuristica

@@ -1,7 +1,7 @@
 # Processador de Consultas SQL (QueryLab)
 
-> Projeto Acadêmico de Banco de Dados II — Etapa 3 (Entrega: 22/10/2026).
-> Analisador léxico, parser sintático, validador semântico, conversor para álgebra relacional, gerador de grafo de operadores, otimizador heurístico (push-down de seleção e projeção) e plano de execução em Python puro com interface gráfica web em tema claro.
+> Projeto Acadêmico de Banco de Dados II — Entrega final: 27/10/2026.
+> Parser, validação, álgebra, grafos, seleção/projeção antecipadas e reordenação conectada de junções. Veja [ENTREGA.md](ENTREGA.md) para estratégia, limites, métricas e demonstração.
 
 ---
 
@@ -38,7 +38,7 @@ python server.py --port 3001
 ---
 
 ### Rodando os Testes Unitários no Windows
-Para verificar se tudo está funcionando (23 testes automatizados com 100% de aprovação):
+Para executar os 39 testes automatizados, incluindo comparações com SQLite em memória:
 
 ```cmd
 .\testar.cmd
@@ -76,15 +76,23 @@ python3 -m unittest discover -s tests -v
 * **Ordem de Execução (Plano de Consulta Canônico)**: Percurso bottom-up (pós-ordem) no grafo de operadores gerando a ordem sequencial determinística de execução passo a passo.
 * **Execução em Memória e Exibição de Resultados**: Avaliação do plano sobre a base de exemplo `BD_Vendas` com cálculo das tuplas intermediárias de cada nó e renderização dos dados na interface gráfica.
 
-### Entrega 3 (22/10/2026) — Nova!
+### Entrega 3 (22/10/2026)
 * **Heurística de Redução de Tuplas (Push-down de Seleção)**: Decompõe predicados conjuntivos e desce seleções unárias ($\sigma$) para serem avaliadas imediatamente após a varredura da respectiva tabela base, antes de junções e produtos.
 * **Heurística de Redução de Atributos (Push-down de Projeção)**: Projeção intermediária antecipada ($\pi$) nas folhas descartando colunas redundantes não utilizadas nas operações posteriores.
 * **Evitar Produto Cartesiano (Heurística 5.b.ii)**: Converte produtos cartesianos com condições no `WHERE` em junções internas condicionadas ($\bowtie$).
-* **Grafo Otimizado e Comparativo Visual**: Alternância interativa na interface entre Árvore Otimizada, Árvore Canônica e Comparativo Lado a Lado, com telemetria de economia de memória e tuplas.
+* **Grafo Otimizado e Comparativo Visual**: Alternância entre Árvore Otimizada, Árvore Canônica e Lado a Lado. Métricas mostram somas de tuplas e células emitidas, incluindo aumentos; não medem RAM nem tempo.
 * **Álgebra Relacional Otimizada**: Expressão matemática formal refletindo os operadores reordenados em Unicode, LaTeX e ASCII.
 * **Nova Interface em Tema Claro**: Remodelação estética completa baseada em diretrizes de design editorial e minimalismo utilitário para ferramentas de dados.
 
 ---
+
+### Entrega final (27/10/2026)
+
+* Reordenação gulosa determinística baseada em cardinalidade após filtros e conectividade, preservando a ordem canônica.
+* Filtros locais de ON e WHERE antecipados; todos os predicados de ligação aplicados quando os operandos estão disponíveis.
+* Produtos mantidos quando não há extensão conectada disponível.
+* Álgebra otimizada gerada da árvore executada em Unicode, ASCII e LaTeX, incluindo seleções residuais.
+* Comparação dos resultados por multiconjuntos em cada execução; duplicatas preservadas.
 
 ## 📂 Estrutura do Projeto
 
@@ -99,11 +107,11 @@ python3 -m unittest discover -s tests -v
 | `consulta/parser.py` | Lexer, parser recursivo e validação semântica |
 | `consulta/algebra.py` | Conversão para Álgebra Relacional (Unicode, LaTeX e ASCII) |
 | `consulta/planner.py` | Construção do Grafo de Operadores Canônico e Plano de Execução |
-| `consulta/optimizer.py` | Motor de otimização heurística (push-down de seleção e projeção - 22/10) |
+| `consulta/optimizer.py` | Seleção/projeção antecipadas e reordenação por cardinalidade e conectividade |
 | `consulta/executor.py` | Motor de execução in-memory sobre o catálogo didático |
 | `consulta/processor.py` | Pipeline integrado executando canônico + otimizador heurístico |
 | `consulta/schema.py` | Leitura do catálogo relacional |
 | `data/catalog.json` | 10 tabelas do BD_Vendas, registros didáticos e exemplos de consulta |
 | `sql/bd-vendas.sql` | DDL MySQL opcional do modelo de banco |
-| `tests/` | Suite com 23 testes automatizados de unidade e integração |
+| `tests/` | 39 testes de unidade/integração; regressões com SQLite e permutações de relações |
 | `ENTREGA.md` | Guia detalhado da entrega acadêmica e roteiro de demonstração |

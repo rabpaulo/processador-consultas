@@ -1,4 +1,5 @@
 import unittest
+from collections import Counter
 
 from consulta.parser import QueryError, parse, validate
 from consulta.processor import process_query
@@ -81,7 +82,7 @@ class ProcessorTests(unittest.TestCase):
         opt = res["optimization"]
 
         self.assertTrue(opt["applied"])
-        self.assertEqual(opt["deliveryDate"], "22/10/2026")
+        self.assertEqual(opt["deliveryDate"], "27/10/2026")
         self.assertIn("Redução de Tuplas", opt["heuristics"]["tupleReduction"]["name"])
         self.assertIn("Redução de Atributos", opt["heuristics"]["attributeReduction"]["name"])
 
@@ -99,7 +100,7 @@ class ProcessorTests(unittest.TestCase):
         self.assertIn("p.Descricao", p_proj["discarded"])
 
         # O resultado do plano otimizado deve ser matematicamente idêntico ao plano canônico
-        self.assertEqual(opt["result"]["rows"], res["result"]["rows"])
+        self.assertEqual(Counter(map(tuple, opt["result"]["rows"])), Counter(map(tuple, res["result"]["rows"])))
         self.assertEqual(opt["result"]["rowCount"], 3)
 
         # 2. Conversão de Produto Cartesiano em Junção sob o WHERE (evitar produto cartesiano)
@@ -108,7 +109,7 @@ class ProcessorTests(unittest.TestCase):
         opt_cart = res_cart["optimization"]
         self.assertGreater(opt_cart["metrics"]["savedTuples"], 0)
         self.assertGreater(opt_cart["metrics"]["tupleReductionPercent"], 0)
-        self.assertEqual(opt_cart["result"]["rows"], res_cart["result"]["rows"])
+        self.assertEqual(Counter(map(tuple, opt_cart["result"]["rows"])), Counter(map(tuple, res_cart["result"]["rows"])))
 
         # 3. Formato da álgebra relacional otimizada
         self.assertIn("π[p.Nome, c.Descricao]", opt_cart["algebra"]["unicode"])

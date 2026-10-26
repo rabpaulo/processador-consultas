@@ -1,5 +1,5 @@
 // Processador de Consultas: Interface de controle e inspeção técnica em JavaScript.
-// Entrega 3 (22/10/2026): Heurísticas de Seleção (Redução de Tuplas) e Projeção (Redução de Atributos).
+// Entrega final (27/10/2026): seleção, projeção e reordenação conectada de junções.
 
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -275,6 +275,33 @@ $('.tabs').addEventListener('keydown', event => {
   buttons[next].focus();
 });
 
+function metricChange(saved, percent, unit) {
+  if (saved < 0) return `Aumento de ${number(-saved)} ${unit} (${number(-percent)}%)`;
+  if (saved > 0) return `Redução de ${number(saved)} ${unit} (${number(percent)}%)`;
+  return `Sem variação na soma de ${unit}`;
+}
+
+function equivalenceText() {
+  return analysis.optimization?.equivalentResults
+    ? 'Resultados canônico e otimizado equivalentes nesta execução, incluindo duplicatas (ordem das linhas desconsiderada).'
+    : 'Resultados divergentes: revise os planos antes de apresentar a consulta.';
+}
+
+function orderingSummary(opt) {
+  const order = opt.heuristics.joinOrdering;
+  const products = opt.heuristics.cartesianAvoidance;
+  return `<div class="technical-footnote">
+    <strong>Ordem canônica:</strong> ${escape(order.originalOrder.join(' → '))}<br>
+    <strong>Ordem otimizada:</strong> ${escape(order.optimizedOrder.join(' → '))}
+    (${order.reordered ? 'reordenada' : 'mantida'}).<br>
+    Cardinalidades após filtros locais: ${Object.entries(order.filteredCardinalities).map(([alias, rows]) => `${escape(alias)}: ${number(rows)}`).join('; ')}.<br>
+    ${escape(order.description)}<br>
+    Saídas estimadas ao adicionar relações: ${order.decisions.map(d => `${escape(d.alias)}: ${number(d.estimatedRows)} (${d.connected ? 'junção' : 'produto necessário'})`).join('; ') || 'Sem combinação binária'}.<br>
+    Produtos cartesianos: ${products.canonicalProducts} canônico(s) → ${products.optimizedProducts} otimizado(s).<br>
+    ${escape(opt.metrics.definition)}<br>${escape(equivalenceText())}
+  </div>`;
+}
+
 function renderMetrics() {
   if (!analysis?.query) {
     $('#metrics').innerHTML = '';
@@ -291,14 +318,13 @@ function renderMetrics() {
   let savingsHtml = '';
   if (opt?.metrics) {
     const m = opt.metrics;
-    if (m.savedCells > 0 || m.savedTuples > 0) {
-      savingsHtml = `
-        <div class="telemetry-badge-savings" title="Economia de volume em memória intermediária obtida pelas heurísticas de 22/10">
-          <span>Otimização 22/10</span>
-          <span>${m.cellReductionPercent > 0 ? `−${m.cellReductionPercent}% células` : `−${m.tupleReductionPercent}% tuplas`}</span>
+    savingsHtml = `
+        <div class="telemetry-badge-savings" title="${escape(m.definition)}">
+          <span>Otimização 27/10 · somas emitidas</span>
+          <span>${metricChange(m.savedCells, m.cellReductionPercent, 'células')}</span>
+          <span>${metricChange(m.savedTuples, m.tupleReductionPercent, 'tuplas')}</span>
         </div>
       `;
-    }
   }
 
   $('#metrics').innerHTML = items.map(([label, value]) => `
@@ -417,28 +443,28 @@ function renderGraph() {
 
   // Resumo de heurísticas no topo do grafo
   let heuristicsBanner = '';
-  if (opt?.metrics) {
+  if (opt?.metrics && graphViewMode !== 'canonical') {
     const m = opt.metrics;
     const h = opt.heuristics;
     heuristicsBanner = `
       <div class="heuristics-dashboard-card">
         <div class="heuristics-card-head">
           <div class="heuristics-title-group">
-            <h3>Heurísticas de otimização aplicadas (22/10/2026)</h3>
+            <h3>Heurísticas de otimização aplicadas (27/10/2026)</h3>
             <span class="heuristics-pill-delivery">Disponível</span>
           </div>
         </div>
 
         <div class="heuristics-metrics-strip">
           <div class="heuristic-stat-box">
-            <span class="h-stat-label">Tuplas intermediárias</span>
+            <span class="h-stat-label">Tuplas emitidas (soma)</span>
             <span class="h-stat-value">${m.canonicalIntermediateTuples} → ${m.optimizedIntermediateTuples}</span>
-            <span class="h-stat-sub">${m.tupleReductionPercent > 0 ? `−${m.tupleReductionPercent}% tuplas intermediárias` : 'Filtradas na folha'}</span>
+            <span class="h-stat-sub">${metricChange(m.savedTuples, m.tupleReductionPercent, 'tuplas')}</span>
           </div>
           <div class="heuristic-stat-box">
-            <span class="h-stat-label">Volume em memória</span>
+            <span class="h-stat-label">Células emitidas (soma)</span>
             <span class="h-stat-value">${m.canonicalIntermediateCells} → ${m.optimizedIntermediateCells} células</span>
-            <span class="h-stat-sub">${m.cellReductionPercent > 0 ? `−${m.cellReductionPercent}% memória intermediária` : 'Atributos estreitados'}</span>
+            <span class="h-stat-sub">${metricChange(m.savedCells, m.cellReductionPercent, 'células')}</span>
           </div>
           <div class="heuristic-stat-box">
             <span class="h-stat-label">Push-down de seleção (σ)</span>
@@ -468,6 +494,7 @@ function renderGraph() {
             `).join('')}
           </div>
         ` : ''}
+        ${orderingSummary(opt)}
       </div>
     `;
   }
@@ -487,7 +514,7 @@ function renderGraph() {
         </div>
         <div class="tree-column">
           <div class="tree-col-head is-opt">
-            <span>Árvore otimizada (heurísticas · 22/10)</span>
+            <span>Árvore otimizada (heurísticas · 27/10)</span>
             <span>${opt.graph.nodes.length} nós</span>
           </div>
           <div class="tree-viewport">
@@ -509,14 +536,16 @@ function renderGraph() {
       ? 'Árvore de operadores otimizada'
       : (graphViewMode === 'comparison' ? 'Comparativo: canônica e otimizada' : 'Árvore de operadores canônica'),
     graphViewMode === 'optimized'
-      ? 'Heurísticas de seleção e projeção aplicadas (22/10). As folhas leem as tabelas; cada nó intermediário executa uma junção, seleção ou projeção.'
-      : 'Representação algébrica em memória sem otimização (20/10). As folhas leem as tabelas; cada nó intermediário executa uma junção, seleção ou projeção.'
+      ? 'Seleções e projeções antecipadas; junções reordenadas por cardinalidade e conectividade (27/10).'
+      : (graphViewMode === 'comparison'
+        ? 'Consulta original e árvore reconstruída com as heurísticas de 27/10.'
+        : 'Representação da consulta original, sem otimização (20/10).')
   ) + `
     <div class="graph-container">
       <div class="graph-control-bar">
         <div class="graph-view-switcher" role="group" aria-label="Modo de visualização da árvore">
           <button class="graph-view-btn ${graphViewMode === 'optimized' ? 'active' : ''}" data-graph-view="optimized">
-            Otimizada (22/10)
+            Otimizada (27/10)
           </button>
           <button class="graph-view-btn ${graphViewMode === 'canonical' ? 'active' : ''}" data-graph-view="canonical">
             Canônica (20/10)
@@ -541,15 +570,15 @@ function renderGraph() {
       ${heuristicsBanner}
       ${viewportContent}
 
-      <div class="technical-footnote">
+      ${graphViewMode !== 'canonical' ? `<div class="technical-footnote">
         <strong>Princípio heurístico (Elmasri & Navathe / Codd):</strong> as operações que reduzem o tamanho dos resultados intermediários são executadas primeiro. <em>Seleções unárias (σ)</em> são empurradas para as folhas para reduzir a cardinalidade antes das junções, e <em>projeções intermediárias (π)</em> eliminam colunas não referenciadas para reduzir a largura das tuplas em memória.
-      </div>
+      </div>` : ''}
     </div>
   `;
 }
 
 // -----------------------------------------------------------------------------
-// Visualização 2: Heurísticas Dedicadas (22/10/2026)
+// Visualização 2: Heurísticas Dedicadas (27/10/2026)
 // -----------------------------------------------------------------------------
 function renderHeuristics() {
   const opt = analysis.optimization;
@@ -561,23 +590,23 @@ function renderHeuristics() {
   const m = opt.metrics;
   const h = opt.heuristics;
 
-  $('#panel').innerHTML = heading('Heurísticas de otimização: seleção e projeção', 'Detalhamento do push-down de operadores para reduzir tuplas e atributos na memória intermediária (Entrega 22/10/2026).') + `
+  $('#panel').innerHTML = heading('Heurísticas: seleção, projeção e junções', 'Operações aplicadas e ordem escolhida na entrega de 27/10/2026.') + `
     <div class="algebra-container">
       <div class="heuristics-dashboard-card">
         <div class="heuristics-metrics-strip">
           <div class="heuristic-stat-box">
-            <span class="h-stat-label">Tuplas intermediárias</span>
+            <span class="h-stat-label">Tuplas emitidas (soma)</span>
             <span class="h-stat-value">${m.canonicalIntermediateTuples} → ${m.optimizedIntermediateTuples}</span>
-            <span class="h-stat-sub">Economia de ${m.savedTuples} tuplas (${m.tupleReductionPercent}%)</span>
+            <span class="h-stat-sub">${metricChange(m.savedTuples, m.tupleReductionPercent, 'tuplas')}</span>
           </div>
           <div class="heuristic-stat-box">
-            <span class="h-stat-label">Células em memória (tuplas × colunas)</span>
+            <span class="h-stat-label">Células emitidas (soma de tuplas × colunas)</span>
             <span class="h-stat-value">${m.canonicalIntermediateCells} → ${m.optimizedIntermediateCells}</span>
-            <span class="h-stat-sub">Economia de ${m.savedCells} células (${m.cellReductionPercent}%)</span>
+            <span class="h-stat-sub">${metricChange(m.savedCells, m.cellReductionPercent, 'células')}</span>
           </div>
           <div class="heuristic-stat-box">
             <span class="h-stat-label">Push-down de seleção (σ)</span>
-            <span class="h-stat-value">${h.tupleReduction.appliedCount} predicado(s)</span>
+            <span class="h-stat-value">${h.tupleReduction.appliedCount} seleção(ões)</span>
             <span class="h-stat-sub">Redução precoce de cardinalidade</span>
           </div>
           <div class="heuristic-stat-box">
@@ -595,16 +624,17 @@ function renderHeuristics() {
             <h3>1. Redução de tuplas</h3>
           </div>
           <p class="heur-card-desc">
-            Predicados unários do WHERE são empurrados para baixo na árvore e avaliados logo após a leitura de cada tabela base, antes de qualquer produto ou junção.
+            Predicados unários de ON e WHERE são avaliados logo após a leitura da tabela base, antes de qualquer produto ou junção.
           </p>
           ${h.tupleReduction.items.length === 0 ? `
-            <div class="heur-empty">Nenhum predicado unário nesta consulta (seleções aplicadas nas junções ou sem restrição WHERE).</div>
+            <div class="heur-empty">Nenhum predicado unário de ON ou WHERE nesta consulta.</div>
           ` : `
             <div class="heur-list">
               ${h.tupleReduction.items.map(it => `
                 <div class="heur-item heur-item--sel">
                   <div class="heur-item-title">${escape(it.table)} (alias ${escape(it.alias)})</div>
                   <div>Predicado: <code>${escape(it.predicate)}</code></div>
+                  <div>Origem: ${escape([...new Set(it.predicates.map(p => p.origin))].join(', '))}</div>
                   <div>De <strong>${it.initialTuples} tuplas</strong> para <strong>${it.finalTuples} tuplas</strong>: ${it.reductionTuples} descartadas antes da junção.</div>
                 </div>
               `).join('')}
@@ -636,9 +666,7 @@ function renderHeuristics() {
         </section>
       </div>
 
-      <div class="technical-footnote">
-        <strong>Conclusão técnica:</strong> o plano otimizado produz exatamente o mesmo resultado da consulta canônica, com menor consumo de memória e tempo de processamento, por reduzir o produto cartesiano e descartar dados inúteis na primeira oportunidade.
-      </div>
+      ${orderingSummary(opt)}
     </div>
   `;
 }
@@ -666,9 +694,10 @@ function renderAlgebra() {
 
   const components = [
     ['Projeção final (π)', currentAlgebra.columns.join(', '), 'Atributos mantidos no resultado final da consulta'],
-    ['Seleção (σ)', analysis.query.where ? analysis.query.predicateLabels.join(' ∧ ') : 'Sem predicado WHERE', 'Filtros aplicados para restringir tuplas'],
+    ['Predicados WHERE', analysis.query.wherePredicateLabels.join(' ∧ ') || 'Sem predicado WHERE', 'Condições originalmente escritas no WHERE'],
+    ['Predicados ON', analysis.query.onPredicateLabels.join(' ∧ ') || 'Sem predicado ON', 'Condições originalmente escritas nos INNER JOINs; filtros locais podem ser antecipados'],
     ['Relações base', analysis.query.tables.map(t => `${t.table} AS ${t.alias}`).join(', '), 'Tabelas do catálogo BD_Vendas lidas na base'],
-    ['Modo de execução', algebraMode === 'optimized' ? 'Álgebra otimizada (heurísticas 22/10)' : 'Álgebra canônica (não otimizada)', 'Estratégia algébrica de avaliação'],
+    ['Modo de execução', algebraMode === 'optimized' ? 'Álgebra otimizada (heurísticas 27/10)' : 'Álgebra canônica (não otimizada)', 'Estratégia algébrica de avaliação'],
   ];
 
   $('#panel').innerHTML = heading(
@@ -680,7 +709,7 @@ function renderAlgebra() {
         <div class="formula-card-header">
           <div class="graph-view-switcher" role="group" aria-label="Modo da álgebra">
             <button class="graph-view-btn ${algebraMode === 'optimized' ? 'active' : ''}" data-algebra-mode="optimized">
-              Otimizada (22/10)
+              Otimizada (27/10)
             </button>
             <button class="graph-view-btn ${algebraMode === 'canonical' ? 'active' : ''}" data-algebra-mode="canonical">
               Canônica (20/10)
@@ -740,7 +769,7 @@ function renderPlan() {
     <div class="graph-control-bar">
       <div class="graph-view-switcher" role="group" aria-label="Modo do plano">
         <button class="graph-view-btn ${planViewMode === 'optimized' ? 'active' : ''}" data-plan-mode="optimized">
-          Otimizado (22/10)
+          Otimizado (27/10)
         </button>
         <button class="graph-view-btn ${planViewMode === 'canonical' ? 'active' : ''}" data-plan-mode="canonical">
           Canônico (20/10)
@@ -832,7 +861,7 @@ function renderResults() {
       </table>
     </div>
     <div class="technical-footnote">
-      Os dados foram avaliados em memória pelo executor Python com os registros didáticos de BD_Vendas. Os planos canônico e otimizado geram o mesmo resultado.
+      Os dados foram avaliados em memória sobre BD_Vendas. ${escape(equivalenceText())}
     </div>
   `;
 }
@@ -925,7 +954,7 @@ function renderDeliveries() {
     [2, '20/10/2026', 'Conversão para álgebra relacional', 'Expressão canônica em Unicode, LaTeX e componentes', true],
     [2, '20/10/2026', 'Grafo não otimizado', 'Árvore de operadores em memória, visualização e plano de execução', true],
     [3, '22/10/2026', 'Aplicação da heurística de projeção e seleção', 'Push-down de seleções (redução de tuplas) e push-down de projeções (redução de atributos)', true],
-    [4, '27/10/2026', 'Demais heurísticas', 'Seletividade, reordenação de relações mais restritivas e ajustes finos', false],
+    [4, '27/10/2026', 'Demais heurísticas', 'Reordenação por cardinalidade, junções conectadas, ON/WHERE e álgebra gerada do grafo', true],
   ];
 
   $('#panel').innerHTML = heading('Requisitos da disciplina · Banco de Dados II', 'Matriz de entregas conforme as especificações oficiais do trabalho prático.') + `
@@ -952,7 +981,7 @@ function renderDeliveries() {
       </table>
     </div>
     <div class="technical-footnote">
-      <strong>Entrega atual (22/10/2026):</strong> as heurísticas de redução de tuplas (push-down de seleção) e de redução de atributos (push-down de projeção) estão implementadas no motor Python e refletidas na árvore de operadores, na álgebra relacional otimizada e no plano físico.
+      <strong>Entrega atual (27/10/2026):</strong> seleção, projeção e reordenação de junções estão implementadas no motor Python. A álgebra otimizada é gerada do grafo e o plano segue suas dependências.
     </div>
   `;
 }

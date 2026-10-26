@@ -1,115 +1,132 @@
-# Guia da Entrega 3 — 22/10/2026
+# Entrega final — 27/10/2026
 
-Branch: `main`. Versão cumulativa e funcional organizada conforme o cronograma oficial da disciplina de Banco de Dados II (Trabalho Prático — Processador de Consultas).
+QueryLab — Processador de Consultas sobre BD_Vendas. Versão cumulativa das quatro entregas. Os PDFs oficiais, o modelo e a gramática SQL foram preservados.
 
----
+## Executar e verificar
 
-## Situação das Entregas
-
-| Prazo | Requisito | Situação nesta versão |
-| :--- | :--- | :--- |
-| **15/10/2026** | **Interface gráfica existente e funcional** | **Disponível (Remodelada em Tema Claro Editorial)** |
-| **15/10/2026** | **A string é parseada** | **Disponível** |
-| **15/10/2026** | **Campos e comandos errados são validados** | **Disponível** |
-| **20/10/2026** | **Conversão para álgebra relacional** | **Disponível (Canônica & Otimizada)** |
-| **20/10/2026** | **Grafo não otimizado** | **Disponível** |
-| **22/10/2026** | **Aplicação da Heurística Projeção e Seleção** | **Disponível** |
-| 27/10/2026 | Demais heurísticas | Etapa futura |
-
----
-
-## O que foi implementado na Entrega 3 (22/10/2026)
-
-### 1. Heurística de Redução de Tuplas — Push-Down de Seleção (`consulta/optimizer.py`)
-- **Decomposição conjuntiva**: Decompõe condições complexas do `WHERE` em predicados atômicos interligados por `AND`.
-- **Descida de predicados unários (Push-down σ)**: Predicados que referenciam apenas atributos de uma única relação (ex.: `p.Preco > 200`, `c.Descricao = 'Informática'`) são empurrados para a base da árvore, executando imediatamente após a leitura (scan) da relação.
-- **Redução drástica de cardinalidade**: Evita que tuplas não correspondentes participem de combinações binárias custosas (junções e produtos cartesianos).
-- **Evitar Produto Cartesiano (Heurística 5.b.ii)**: Identifica predicados de junção declarados no `WHERE` (ex.: `p.Categoria_idCategoria = c.idCategoria`) e converte o produto cartesiano ($\times$) em junção interna condicionada ($\bowtie$), eliminando explosão combinatória.
-
-### 2. Heurística de Redução de Atributos — Push-Down de Projeção (`consulta/optimizer.py`)
-- **Análise de necessidade de atributos**: Determina para cada relação exatamente os atributos necessários em etapas posteriores:
-  - Atributos exigidos na projeção final (`SELECT`);
-  - Atributos exigidos em predicados de junção (`ON` ou `WHERE`).
-- **Projeções intermediárias nas folhas (Push-down π)**: Logo após a seleção unária (ou leitura da relação), descarta precocemente todos os atributos que não serão mais referenciados.
-- **Economia de memória e I/O**: Reduz a largura das tuplas intermediárias antes de entrarem nas junções e buffers em memória.
-
-### 3. Grafo de Operadores Otimizado vs Canônico (`consulta/optimizer.py` & `app.js`)
-- **Grafo em memória**: Estrutura em memória contendo nós de varredura, seleções antecipadas com tag de heurística, projeções antecipadas com atributos descartados, junções otimizadas e projeção final.
-- **Alternador de visualização na GUI**:
-  - **Árvore Otimizada (22/10)**: Exibe a estrutura com push-downs aplicados e badges indicativos;
-  - **Árvore Canônica (20/10)**: Exibe a árvore padrão sem otimizações;
-  - **Comparativo Lado a Lado**: Visualização simultânea de ambas as árvores para contraste didático e auditoria.
-- **Métricas comparativas em tempo real**:
-  - Contagem de tuplas intermediárias (Canônico vs Otimizado);
-  - Volume de dados intermediários em células de memória (`tuplas × atributos`);
-  - Percentual de redução alcançado (ex.: até 60% de economia de dados em memória).
-
-### 4. Álgebra Relacional Otimizada (`consulta/optimizer.py`)
-- Geração automática da expressão matemática refletindo a nova árvore em múltiplos formatos:
-  - **Unicode**: $\pi_{p.Nome, p.Preco, c.Descricao}\left( \pi_{p.Nome, p.Preco, p.Categoria\_idCategoria}(\sigma_{p.Preco > 200}(Produto)) \bowtie \sigma_{c.Descricao = \text{'Informática'}}(Categoria) \right)$
-  - **LaTeX**: Código tipográfico formatado para relatórios;
-  - **ASCII**: Notação textual pura (`PI`, `SIGMA`, `JOIN`).
-
-### 5. Remodelação Completa de UI/UX em Tema Claro Editorial
-- **Visual Moderno e Funcional**: Baseado nas melhores práticas de design de ferramentas de engenharia de software (estilo editorial / minimalismo utilitário).
-- **Paleta de Alto Contraste**: Fundo claro e limpo (`#f8f9fa`), cartões brancos com bordas sutis (`#e2e8f0`), tipografia escura com legibilidade máxima (`#0f172a`), sem gradientes artificiais ou sombras pesadas.
-- **Badges Semânticos Padronizados**: Cores pastéis suaves e calibradas para cada operador relacional ($\pi$ índigo, $\sigma$ âmbar, $\bowtie$ esmeralda, $\times$ vermelho, $\▤$ ardósia).
-- **Nova aba "Heurísticas (22/10)"**: Painel dedicado explicando minuciosamente o push-down de seleção e projeção para a consulta em execução.
-
----
-
-## Roteiro de Demonstração / Apresentação
-
-1. **Iniciar a aplicação**:
-   - Dê dois cliques em `iniciar.cmd` (Windows) ou execute `python3 server.py` (Linux/Mac).
-   - Acesse no navegador: `http://localhost:3000`.
-
-2. **Exemplo 1: Produtos e categorias (Push-down de Seleção e Projeção com INNER JOIN)**:
-   - No dropdown de exemplos, selecione `Produtos e categorias`.
-   - Clique em **Executar** (<kbd>Ctrl</kbd> + <kbd>Enter</kbd>).
-   - Na aba **Árvore de Operadores**:
-     - Observe no topo o painel com as métricas de otimização: economia de **24,6% no volume em memória**.
-     - Veja que o ramo `Produto` aplica primeiro a seleção $\sigma_{[p.Preco > 200]}$, reduzindo de 8 para 5 tuplas, e em seguida a projeção $\pi$ descartando 3 atributos não utilizados (`idProduto`, `Descricao`, `QuantEstoque`).
-     - Veja que o ramo `Categoria` aplica a seleção $\sigma_{[c.Descricao = 'Informática']}$, reduzindo de 3 para 1 tupla.
-     - A junção $\bowtie$ opera sobre relações já filtradas e estreitas!
-     - Alterne para o modo **Comparativo Lado a Lado** para visualizar a diferença gritante entre a árvore canônica e a otimizada.
-   - Na aba **Heurísticas (22/10)**:
-     - Veja o relatório analítico de cada heurística aplicada com antes/depois de tuplas e colunas.
-   - Na aba **Álgebra Relacional**:
-     - Alterne entre **Álgebra Otimizada** e **Álgebra Canônica** para conferir a expressão formal correspondente.
-
-3. **Exemplo 2: Junção no WHERE (Evitar Produto Cartesiano + Push-down de Seleção)**:
-   - Carregue o exemplo `Junção no WHERE`.
-   - Clique em **Executar**.
-   - Note as métricas: **-35% de tuplas intermediárias** e **-60,1% de dados em memória**!
-   - Na árvore canônica, é gerado um produto cartesiano de 24 tuplas ($8 \times 3$).
-   - Na árvore otimizada, a condição `p.Preco < 300` é empurrada para a relação `Produto`, reduzindo para 4 tuplas, e a condição `p.Categoria_idCategoria = c.idCategoria` converte o produto em junção interna!
-   - Não há formação do produto cartesiano de 24 tuplas.
-
-4. **Exemplo 3: Pedidos por cliente (Junção Tripla com Push-down de Projeção Extensiva)**:
-   - Carregue `Pedidos por cliente`.
-   - Note a economia de **45,7% de volume de dados em memória**: colunas pesadas de `Cliente` (como `Email`, `Senha`, `Nascimento`, `DataRegistro`) são descartadas logo na folha antes das duas junções subsequentes.
-
----
-
-## Validação e Testes Automatizados
-
-Foram executados **23 testes automatizados** com 100% de aprovação cobrindo toda a cadeia:
-
-```bash
-python3 -B -m unittest discover -s tests -v
+```powershell
+python -B server.py --port 3007
+python -B -m unittest discover -s tests -v
+node --check app.js
 ```
 
-Cobertura dos testes:
-- Análise léxica, sintática recursiva e validações semânticas da Entrega 1.
-- Conversão da álgebra relacional canônica da Entrega 2.
-- Construção do grafo não otimizado e plano determinístico pós-ordem.
-- Avaliação in-memory sobre o catálogo `BD_Vendas`.
-- **Nova cobertura da Entrega 3**:
-  - Testes do módulo `consulta/optimizer.py`.
-  - Verificação do push-down de seleção unária ($\sigma$).
-  - Verificação do push-down de projeção antecipada ($\pi$).
-  - Conversão de produto cartesiano em junção sob o `WHERE`.
-  - Garantia de equivalência exata dos resultados finais entre os planos canônico e otimizado.
-  - Testes de resposta da API HTTP `/api/process` com a chave `optimization`.
-  - Validação de sintaxe JavaScript com `node --check app.js`.
+Abrir http://localhost:3007. O iniciador continua usando a porta padrão 3000; escolher outra porta se estiver ocupada.
+
+## Estratégia implementada
+
+1. Decompor AND de ON e WHERE; classificar cada ocorrência como filtro local, ligação entre relações ou condição constante. Cada ocorrência tem id e origem.
+2. Antecipar filtros locais também de ON de INNER JOIN. Constantes permanecem como seleção residual, representada e executada.
+3. Obter cardinalidade e valores distintos das folhas filtradas no catálogo didático. Iniciar pela relação com menos linhas; empate pela posição original.
+4. Escolher próximas relações por conectividade, menor saída estimada, menor cardinalidade local e posição original, nessa ordem.
+5. Igualdades usam a estimativa N(esquerda) × N(direita) / maior número de valores distintos das colunas. Outras comparações usam seletividade didática de 1/3. Condições múltiplas multiplicam seletividades. São estimativas, não cardinalidades reais nem garantia de ótimo.
+6. Reunir todos os predicados aplicáveis na primeira junção com operandos disponíveis, aplicando cada ocorrência uma vez. Somente usar produto quando não há extensão conectada.
+7. Preservar atributos do SELECT e dos predicados posteriores nas projeções antecipadas. Preservar duplicatas e aliases.
+8. Gerar o plano por pós-ordem e a álgebra Unicode/ASCII/LaTeX diretamente da árvore otimizada, incluindo seleções residuais.
+9. Manter a ordem e estruturas canônicas intactas. Comparar resultados como multiconjuntos em cada execução e informar a equivalência real na interface.
+
+## Métricas
+
+Soma de tuplas emitidas: somar saídas dos operadores, incluindo scans, exceto a projeção final.
+Soma de células emitidas: somar linhas produzidas × atributos de cada operador.
+
+Diferenças e percentuais são assinados: redução negativa indica aumento. Essas somas não medem RAM, bytes, pico de memória, tempo ou I/O. Novos operadores também emitem linhas: o exemplo Produtos e categorias continua com 22 → 23 tuplas somadas, embora a junção passe de 8 para 3 linhas. O aumento é mostrado explicitamente.
+
+## Três consultas para demonstrar
+
+### 1. Reordenação real
+
+```sql
+SELECT c.Nome, p.idPedido, s.Descricao
+FROM Cliente c
+INNER JOIN Pedido p ON c.idCliente = p.Cliente_idCliente
+INNER JOIN Status s ON p.Status_idStatus = s.idStatus
+WHERE s.idStatus = 2;
+```
+
+Mostrar Árvore → Lado a lado e Plano → Otimizado. Canônico: Cliente → Pedido → Status; junções de 6 e 6 linhas.
+Otimizado: Status → Pedido → Cliente; Status reduz de 3 para 1 e as junções produzem 2 e 2 linhas.
+Resultado: Bruno/pedido 2/Pago e Delta Ltda/pedido 4/Pago.
+Somas: tuplas 27 → 28; células 248 → 116. A primeira soma aumenta por incluir operadores adicionais.
+
+### 2. Produto evitado independentemente do FROM
+
+```sql
+SELECT c.Nome, p.idPedido, s.Descricao
+FROM Cliente c, Status s, Pedido p
+WHERE c.idCliente = p.Cliente_idCliente
+  AND p.Status_idStatus = s.idStatus
+  AND s.idStatus = 2;
+```
+
+Canônico: produtos de 12 e 72 linhas, seguidos de seleção.
+Otimizado: Status → Pedido → Cliente; sem produto; junções de 2 e 2 linhas.
+Mesmo resultado da consulta 1. Somas: tuplas 99 → 28; células 1208 → 116.
+
+### 3. Condições múltiplas e álgebra fiel
+
+```sql
+SELECT p.Nome, c.Descricao
+FROM Produto p, Categoria c
+WHERE p.Categoria_idCategoria = c.idCategoria
+  AND p.idProduto > c.idCategoria;
+```
+
+Canônico: produto de 24 linhas e seleção para 7.
+Otimizado: Categoria → Produto; junção com ambas as condições, produzindo 7 linhas.
+O predicado antes residual agora é absorvido pela junção e aparece nas três representações.
+Resultado: todos os produtos exceto Notebook, com suas categorias.
+Somas: tuplas 42 → 26; células 302 → 113.
+
+## Antes e depois da implementação
+
+| Caso | Otimizado anterior | Otimizado atual |
+|---|---|---|
+| Consulta 1 | Ordem c,p,s; junções 6 e 2; somas 32 tuplas/136 células | Ordem s,p,c; junções 2 e 2; 28 tuplas/116 células |
+| Consulta 2 | Produto c×s de 4 linhas; junção de 6 e residual para 2; 36 tuplas/164 células | Sem produto; junções 2 e 2; 28 tuplas/116 células |
+| Consulta 3 | Junção de 8 e residual para 7; expressão omitia o residual | Junção de 7 com as duas condições; expressão correspondente |
+
+Valores anteriores registrados na auditoria desta sessão e atuais medidos no mesmo catálogo.
+
+## Exemplos do seletor
+
+- Produtos e categorias: Preco > 200 reduz Produto de 8 para **4**, não 5. Categoria Informática: 3 → 1. Resultado: 3 linhas; células 142 → 107.
+- Junção no WHERE: Preco < 300 reduz Produto de 8 para **5**, não 4. Produto de 24 substituído por junção de 5; células 286 → 114.
+- Pedidos por cliente: ordem Status → Pedido → Cliente; junções de 1 e 1 linha; células 234 → 115.
+
+## Validação automatizada
+
+39 testes: 23 anteriores, com atualização da data e comparação por multiconjuntos na regressão de seleção/projeção, e 16 novas regressões em tests/test_optimizer.py.
+
+Um dos testes percorre 60 cenários: todas as permutações de três e quatro tabelas, com e sem filtro seletivo. Cada consulta é comparada com SQLite em memória e verificada quanto a resultados, multiplicidades, atributos, pais/filhos, arestas, dependências, contagens e aplicação única de cada ocorrência de predicado.
+
+Também são cobertos ON local, componentes desconectados, múltiplas condições, seleção residual constante nas três fórmulas, aut junção, resultado vazio, NULL, estrelas, duplicatas, determinismo, estruturas canônicas preservadas e métricas com aumento.
+
+Resultado da verificação: **39 testes aprovados, zero falhas**. `node --check app.js` e `git diff --check` aprovados.
+
+## Teste manual no Chrome
+
+- Consulta obrigatória de INNER JOIN: ordem Status → Pedido → Cliente, plano em pós-ordem e resultados Bruno/pedido 2 e Delta Ltda/pedido 4 confirmados.
+- Consulta com Cliente, Status, Pedido: comparativo mostra 2 produtos no canônico e zero no otimizado, com resultado equivalente.
+- Consulta de múltiplas condições: segunda condição presente em Unicode, ASCII e LaTeX.
+- Filtros locais do ON: dois filtros antecipados, com origem ON no painel e resultado de 3 linhas.
+- Modo canônico sem banner de heurísticas. A métrica 27 → 28 mostra aumento, sem afirmar ganho de tempo/RAM.
+- Exemplos existentes Produtos e categorias, Pedidos por cliente e Junção no WHERE exercitados; resultados de 3, 1 e 5 linhas, respectivamente.
+- A comparação se adapta à largura disponível; em janela estreita, as duas árvores ficam empilhadas.
+
+## Matriz dos entregáveis
+
+| Entrega | Requisito | Status | Evidência |
+|---|---|---|---|
+| 15/10 | Interface e entrada SQL | PASS | index.html; app.js:run |
+| 15/10 | Parser e validação | PASS | consulta/parser.py; testes de parser/API |
+| 20/10 | Álgebra canônica | PASS | consulta/algebra.py:build_algebra |
+| 20/10 | Grafo canônico | PASS | consulta/planner.py:build_plan |
+| 22/10 | Seleção antecipada | PASS | optimizer.py:build_optimized_plan; ON/WHERE |
+| 22/10 | Projeção antecipada | PASS | optimizer.py; testes de atributos/estrelas |
+| 27/10 | Reordenação restritiva | PASS | optimizer.py:_order_relations; testes 3/4 tabelas |
+| 27/10 | Evitar produtos desnecessários | PASS | 60 permutações conectadas; componentes desconectados |
+| 27/10 | Ajustes, álgebra e plano | PASS | algebra_from_graph; pós-ordem; testes de integridade |
+
+## Limites
+
+A heurística é gulosa e não garante ótimo global. Estatísticas vêm dos dados didáticos; estimativas podem divergir das cardinalidades reais exibidas nos nós. O executor continua usando laços aninhados e guarda intermediários em memória. Não foram adicionados OR ou outros tipos de JOIN. A nota acadêmica cabe ao professor.

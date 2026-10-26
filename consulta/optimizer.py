@@ -1,8 +1,6 @@
-"""Heurísticas de Otimização de Consultas: Redução de Tuplas (Push-Down de Seleção)
-e Redução de Atributos (Push-Down de Projeção) — Entrega 3 (22/10/2026).
-"""
+"""Seleção, projeção e reordenação conectada de INNER JOINs — 27/10/2026."""
 
-from .algebra import format_condition, format_operand
+from .algebra import format_condition, algebra_from_graph
 from .executor import eval_condition
 from .schema import SAMPLE_DATA, SCHEMA
 
@@ -75,6 +73,63 @@ def _combine_conditions(conditions):
     return curr
 
 
+def _order_relations(tables, unary_by_alias, predicates):
+    """Guloso: cardinalidades locais exatas; junções estimadas por valores distintos.
+
+    As estatísticas vêm apenas das folhas filtradas do catálogo didático, sem
+    executar junções para escolher o plano. Empates preservam a ordem do FROM.
+    Uma extensão conectada sempre vence uma extensão cartesiana.
+    """
+    counts, distinct = {}, {}
+    for table in tables:
+        alias = table["alias"]
+        local = _combine_conditions(unary_by_alias[alias])
+        rows = [{f"{alias}.{k}": v for k, v in row.items()}
+                for row in SAMPLE_DATA[table["table"]]]
+        rows = [row for row in rows if eval_condition(local, row)]
+        counts[alias] = len(rows)
+        for col in SCHEMA[table["table"]]:
+            key = f"{alias}.{col}"
+            distinct[key] = len({row[key] for row in rows if row[key] is not None})
+
+    indexed = list(enumerate(tables))
+    first = min(indexed, key=lambda item: (counts[item[1]["alias"]], item[0]))
+    ordered = [first[1]]
+    remaining = [item for item in indexed if item != first]
+    available = {first[1]["alias"]}
+    estimate = float(counts[first[1]["alias"]])
+    pending = list(predicates)
+    joins, decisions = [], []
+    while remaining:
+        candidates = []
+        for index, table in remaining:
+            alias = table["alias"]
+            applicable = [p for p in pending
+                          if alias in _get_referenced_aliases(p["condition"])
+                          and _get_referenced_aliases(p["condition"]) <= available | {alias}]
+            output = estimate * counts[alias]
+            for predicate in applicable:
+                cond = predicate["condition"]
+                if cond["operator"] == "=":
+                    keys = [cond[side]["key"] for side in ("left", "right")]
+                    output /= max(1, *(distinct[key] for key in keys))
+                else:
+                    output /= 3  # Aproximação didática para theta-join.
+            candidates.append((not bool(applicable), output, counts[alias], index, table, applicable))
+        _, estimate, _, index, table, applicable = min(candidates, key=lambda c: c[:4])
+        condition = _combine_conditions([p["condition"] for p in applicable])
+        joins.append({"rightTable": table, "condition": condition,
+                      "predicates": applicable, "estimatedRows": round(estimate, 3)})
+        decisions.append({"alias": table["alias"], "connected": bool(applicable),
+                          "estimatedRows": round(estimate, 3)})
+        used = {p["id"] for p in applicable}
+        pending = [p for p in pending if p["id"] not in used]
+        available.add(table["alias"])
+        ordered.append(table)
+        remaining = [item for item in remaining if item[0] != index]
+    return ordered, joins, pending, counts, decisions
+
+
 def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_plan):
     """Aplica as heurísticas de Seleção (Redução de Tuplas) e Projeção (Redução de Atributos)
     gerando o grafo otimizado, plano de execução correspondente e álgebra relacional otimizada.
@@ -85,55 +140,32 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
     columns = query["columns"]
     proj_keys = [c["key"] for c in columns]
 
-    table_by_alias = {t["alias"]: t["table"] for t in tables}
-    where_conjuncts = _extract_conjuncts(where)
-
-    # 1. Separação de predicados do WHERE em unários (push-down de seleção) e de junção
+    # Todos os JOINs suportados são internos: ON e WHERE são conjunções
+    # comutáveis. Cada ocorrência recebe um id e é alocada uma única vez.
+    original_order = [t["alias"] for t in tables]
+    predicates = []
+    for origin, condition in [("ON", j["condition"]) for j in joins] + [("WHERE", where)]:
+        for conj in _extract_conjuncts(condition):
+            predicates.append({"id": len(predicates), "origin": origin, "condition": conj,
+                               "text": format_condition(conj)})
     unary_by_alias = {t["alias"]: [] for t in tables}
-    multi_table_conjuncts = []
-
-    for conj in where_conjuncts:
-        aliases = _get_referenced_aliases(conj)
-        if len(aliases) == 1:
-            alias = next(iter(aliases))
-            if alias in unary_by_alias:
-                unary_by_alias[alias].append(conj)
-            else:
-                multi_table_conjuncts.append(conj)
-        elif len(aliases) == 0:
-            # Condição sem referências a colunas (ex: 1 = 1) - atribui à primeira tabela
-            unary_by_alias[tables[0]["alias"]].append(conj)
+    origins_by_alias = {t["alias"]: [] for t in tables}
+    multi, residual = [], []
+    for predicate in predicates:
+        refs = _get_referenced_aliases(predicate["condition"])
+        if len(refs) == 1:
+            alias = next(iter(refs))
+            unary_by_alias[alias].append(predicate["condition"])
+            origins_by_alias[alias].append(predicate)
+        elif not refs:
+            residual.append(predicate)
         else:
-            multi_table_conjuncts.append(conj)
+            multi.append(predicate)
 
-    # 2. Heurística 5.b.ii: Evitar produto cartesiano convertendo condições de WHERE entre tabelas em INNER JOIN
-    optimized_joins = []
-    used_multi_conjuncts = set()
-
-    for idx, join in enumerate(joins):
-        right_table = tables[idx + 1]
-        right_alias = right_table["alias"]
-        left_aliases = {t["alias"] for t in tables[:idx + 1]}
-
-        cond = join["condition"]
-        if cond is None:
-            # Produto cartesiano no FROM: busca se no WHERE há predicado entre left_aliases e right_alias
-            for conj_idx, conj in enumerate(multi_table_conjuncts):
-                if conj_idx in used_multi_conjuncts:
-                    continue
-                conj_aliases = _get_referenced_aliases(conj)
-                if right_alias in conj_aliases and (conj_aliases - {right_alias}).issubset(left_aliases):
-                    cond = conj
-                    used_multi_conjuncts.add(conj_idx)
-                    break
-
-        optimized_joins.append({
-            "rightTable": right_table,
-            "condition": cond,
-            "wasCartesian": join["condition"] is None and cond is not None,
-        })
-
-    remaining_where_conjuncts = [c for i, c in enumerate(multi_table_conjuncts) if i not in used_multi_conjuncts]
+    tables, optimized_joins, pending, local_counts, decisions = _order_relations(
+        tables, unary_by_alias, multi)
+    residual.extend(pending)
+    residual_conjuncts = [p["condition"] for p in residual]
 
     # 3. Análise de atributos necessários para a Heurística de Redução de Atributos (Push-Down de Projeção)
     cols_in_select = set(proj_keys)
@@ -142,7 +174,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
         if oj["condition"]:
             cols_in_joins.update(_get_referenced_columns(oj["condition"]))
     cols_in_remaining_where = set()
-    for rw in remaining_where_conjuncts:
+    for rw in residual_conjuncts:
         cols_in_remaining_where.update(_get_referenced_columns(rw))
 
     future_needed_cols = cols_in_select | cols_in_joins | cols_in_remaining_where
@@ -175,7 +207,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
             "table": table_name,
             "alias": alias,
             "predicate": None,
-            "details": f"Leitura em disco da relação base '{table_name}'",
+            "details": f"Leitura em memória da relação base '{table_name}'",
             "outputColumns": schema_cols,
             "children": [],
             "parentId": None,
@@ -201,6 +233,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
                 "label": f"σ [{pred_text}]",
                 "predicate": pred_text,
                 "condition": combined_cond,
+                "predicates": origins_by_alias[alias],
                 "heuristic": "tuple_reduction",
                 "heuristicLabel": "Redução de Tuplas (Push-down σ)",
                 "details": f"Heurística de Redução de Tuplas: filtra tuplas de '{alias}' antes de junções/produtos.",
@@ -226,6 +259,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
                 "alias": alias,
                 "predicate": pred_text,
                 "initialTuples": initial_tuples,
+                "predicates": origins_by_alias[alias],
             })
 
         # 4.3 Heurística 2: Redução de Atributos (Push-Down de Projeção)
@@ -302,13 +336,9 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
         if opt_join["condition"]:
             cond_text = format_condition(opt_join["condition"], "unicode")
             join_id = f"opt_join_{idx + 1}"
-            join_name = "Junção Otimizada" if opt_join["wasCartesian"] else "Junção (Inner Join)"
-            join_heuristic = "cartesian_avoided" if opt_join["wasCartesian"] else None
-            join_details = (
-                f"Conversão de produto cartesiano em Junção sob o predicado WHERE: {cond_text}"
-                if opt_join["wasCartesian"]
-                else f"Junção interna entre relações reduzidas: {cond_text}"
-            )
+            join_name = "Junção Otimizada"
+            join_heuristic = "join_ordering"
+            join_details = f"Junção conectada com predicados ON/WHERE: {cond_text}"
 
             node = {
                 "id": join_id,
@@ -318,13 +348,15 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
                 "label": f"⋈ [{cond_text}]",
                 "predicate": cond_text,
                 "condition": opt_join["condition"],
+                "predicates": opt_join["predicates"],
+                "estimatedRows": opt_join["estimatedRows"],
                 "details": join_details,
                 "outputColumns": next_cols,
                 "children": [curr_combined["id"], right_head["id"]],
                 "parentId": None,
                 "tuplesCount": 0,
                 "heuristic": join_heuristic,
-                "heuristicLabel": "Evitar Produto Cartesiano (Conversão para ⋈)" if opt_join["wasCartesian"] else None,
+                "heuristicLabel": "Junções conectadas (ON/WHERE)",
             }
         else:
             prod_id = f"opt_product_{idx + 1}"
@@ -364,9 +396,9 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
 
         curr_combined = node
 
-    # 6. Seleções Remanescentes do WHERE (se houver condições envolvendo 3+ tabelas não cobertas nas junções)
-    if remaining_where_conjuncts:
-        rem_cond = _combine_conditions(remaining_where_conjuncts)
+    # 6. Seleções residuais: constantes e condições ainda não alocadas.
+    if residual_conjuncts:
+        rem_cond = _combine_conditions(residual_conjuncts)
         rem_text = format_condition(rem_cond, "unicode")
         sel_rem_id = "opt_select_remaining"
         sel_rem_node = {
@@ -377,6 +409,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
             "label": f"σ [{rem_text}]",
             "predicate": rem_text,
             "condition": rem_cond,
+            "predicates": residual,
             "details": f"Predicado residual após junções: {rem_text}",
             "outputColumns": list(curr_combined["outputColumns"]),
             "children": [curr_combined["id"]],
@@ -549,7 +582,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
         edge["tuplesCount"] = node_map[edge["source"]].get("tuplesCount", 0)
 
     # 10. Construção da Expressão da Álgebra Relacional Otimizada
-    optimized_algebra = _build_optimized_algebra_expression(tables, optimized_joins, unary_by_alias, leaf_heads, node_map, proj_keys)
+    optimized_algebra = algebra_from_graph(optimized_graph)
 
     # 11. Cálculo de Métricas Comparativas (Canônico vs Otimizado)
     # Tuplas intermediárias: soma das tuplas geradas em passos intermediários
@@ -557,19 +590,19 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
     canon_intermediate_tuples = sum(s["rowsProduced"] for s in canon_steps[:-1])
     opt_intermediate_tuples = sum(s["rowsProduced"] for s in steps[:-1])
 
-    # Células intermediárias (Volume em memória = tuplas * colunas)
+    # Soma de células emitidas: não mede bytes nem pico de RAM.
     canon_intermediate_cells = sum(s["rowsProduced"] * s["columnsProduced"] for s in canon_steps[:-1])
     opt_intermediate_cells = sum(s["rowsProduced"] * s["columnsProduced"] for s in steps[:-1])
 
     tuple_reduction_pct = (
         round(((canon_intermediate_tuples - opt_intermediate_tuples) / canon_intermediate_tuples) * 100, 1)
-        if canon_intermediate_tuples > 0 and canon_intermediate_tuples > opt_intermediate_tuples
+        if canon_intermediate_tuples > 0
         else 0.0
     )
 
     cell_reduction_pct = (
         round(((canon_intermediate_cells - opt_intermediate_cells) / canon_intermediate_cells) * 100, 1)
-        if canon_intermediate_cells > 0 and canon_intermediate_cells > opt_intermediate_cells
+        if canon_intermediate_cells > 0
         else 0.0
     )
 
@@ -582,12 +615,26 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
 
     return {
         "applied": True,
-        "deliveryDate": "22/10/2026",
-        "deliveryName": "Aplicação da Heurística Projeção e Seleção",
+        "deliveryDate": "27/10/2026",
+        "deliveryName": "Demais Heurísticas: reordenação, seleção e projeção",
+        "predicateAssignments": predicates,
         "heuristics": {
+            "joinOrdering": {
+                "name": "Reordenação por cardinalidade e conectividade",
+                "originalOrder": original_order,
+                "optimizedOrder": [t["alias"] for t in tables],
+                "reordered": original_order != [t["alias"] for t in tables],
+                "filteredCardinalities": local_counts,
+                "decisions": decisions,
+                "description": "Menor cardinalidade após filtros locais; extensões conectadas por menor saída estimada. Empates estáveis pelo FROM.",
+            },
+            "cartesianAvoidance": {
+                "canonicalProducts": sum(n["type"] == "product" for n in canonical_graph["nodes"]),
+                "optimizedProducts": sum(n["type"] == "product" for n in nodes),
+            },
             "tupleReduction": {
                 "name": "Heurística de Redução de Tuplas (Push-down de Seleção)",
-                "description": "Antecipa as operações de seleção (σ) aplicando os predicados unários do WHERE diretamente sobre as relações base antes de qualquer junção ou produto cartesiano.",
+                "description": "Antecipa seleções unárias de ON e WHERE sobre as relações base antes de junções ou produtos.",
                 "appliedCount": len(applied_selections),
                 "items": applied_selections,
             },
@@ -599,13 +646,14 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
             },
         },
         "metrics": {
+            "definition": "Soma das saídas de todos os operadores exceto a projeção final, incluindo scans. Células = linhas emitidas × atributos. Não mede RAM nem tempo; operadores adicionais podem aumentar as somas.",
             "canonicalIntermediateTuples": canon_intermediate_tuples,
             "optimizedIntermediateTuples": opt_intermediate_tuples,
-            "savedTuples": max(0, canon_intermediate_tuples - opt_intermediate_tuples),
+            "savedTuples": canon_intermediate_tuples - opt_intermediate_tuples,
             "tupleReductionPercent": tuple_reduction_pct,
             "canonicalIntermediateCells": canon_intermediate_cells,
             "optimizedIntermediateCells": opt_intermediate_cells,
-            "savedCells": max(0, canon_intermediate_cells - opt_intermediate_cells),
+            "savedCells": canon_intermediate_cells - opt_intermediate_cells,
             "cellReductionPercent": cell_reduction_pct,
         },
         "graph": optimized_graph,
@@ -617,86 +665,4 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
             "rowCount": len(intermediate_data[root_proj_id]),
             "hasData": len(intermediate_data[root_proj_id]) > 0,
         },
-    }
-
-
-def _build_optimized_algebra_expression(tables, optimized_joins, unary_by_alias, leaf_heads, node_map, proj_keys):
-    """Constrói a representação formal em álgebra relacional refletindo os push-downs aplicados."""
-
-    def _leaf_expr(t, style="unicode"):
-        table_name = t["table"]
-        alias = t["alias"]
-        has_alias = alias != table_name
-
-        if style == "latex":
-            base = f"\\text{{{table_name}}}" + (f" \\text{{ AS }} {alias}" if has_alias else "")
-        else:
-            base = f"{table_name} AS {alias}" if has_alias else table_name
-
-        # 1. Se houve seleção antecipada
-        unary_preds = unary_by_alias.get(alias, [])
-        if unary_preds:
-            combined = _combine_conditions(unary_preds)
-            c_text = format_condition(combined, style)
-            if style == "latex":
-                base = f"\\sigma_{{{c_text}}}\\left( {base} \\right)"
-            elif style == "unicode":
-                base = f"σ[{c_text}]({base})"
-            else:
-                base = f"SIGMA[{c_text}]({base})"
-
-        # 2. Se houve projeção antecipada
-        proj_early_node = node_map.get(f"opt_proj_early_{alias}")
-        if proj_early_node:
-            cols = ", ".join(proj_early_node["outputColumns"])
-            if style == "latex":
-                base = f"\\pi_{{{cols}}}\\left( {base} \\right)"
-            elif style == "unicode":
-                base = f"π[{cols}]({base})"
-            else:
-                base = f"PI[{cols}]({base})"
-
-        return base
-
-    # Combina as expressões com Junção ou Produto
-    t0 = tables[0]
-    expr_u = _leaf_expr(t0, "unicode")
-    expr_l = _leaf_expr(t0, "latex")
-    expr_a = _leaf_expr(t0, "ascii")
-
-    for idx, oj in enumerate(optimized_joins):
-        t_right = tables[idx + 1]
-        r_u = _leaf_expr(t_right, "unicode")
-        r_l = _leaf_expr(t_right, "latex")
-        r_a = _leaf_expr(t_right, "ascii")
-
-        if oj["condition"]:
-            cond_u = format_condition(oj["condition"], "unicode")
-            cond_l = format_condition(oj["condition"], "latex")
-            cond_a = format_condition(oj["condition"], "ascii")
-
-            expr_u = f"({expr_u} ⋈[{cond_u}] {r_u})"
-            expr_l = f"\\left( {expr_l} \\bowtie_{{{cond_l}}} {r_l} \\right)"
-            expr_a = f"({expr_a} JOIN[{cond_a}] {r_a})"
-        else:
-            expr_u = f"({expr_u} × {r_u})"
-            expr_l = f"\\left( {expr_l} \\times {r_l} \\right)"
-            expr_a = f"({expr_a} CROSS {r_a})"
-
-    # Projeção final na raiz
-    cols_str = ", ".join(proj_keys)
-    if len(tables) == 1 and expr_u.startswith(f"π[{cols_str}]("):
-        final_u = expr_u
-        final_l = expr_l
-        final_a = expr_a
-    else:
-        final_u = f"π[{cols_str}]({expr_u})"
-        final_l = f"\\pi_{{{cols_str}}}\\left( {expr_l} \\right)"
-        final_a = f"PI[{cols_str}]({expr_a})"
-
-    return {
-        "unicode": final_u,
-        "latex": final_l,
-        "ascii": final_a,
-        "columns": proj_keys,
     }

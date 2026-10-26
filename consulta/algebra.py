@@ -41,6 +41,41 @@ def format_condition(condition, style="unicode"):
     return ""
 
 
+def algebra_from_graph(graph):
+    """Serializa os operadores efetivamente executados, inclusive filtros residuais."""
+    node_map = {node["id"]: node for node in graph["nodes"]}
+
+    def expression(node_id, style):
+        node = node_map[node_id]
+        if node["type"] == "scan":
+            table, alias = node["table"], node["alias"]
+            base = f"\\text{{{table}}}" if style == "latex" else table
+            if alias != table:
+                base += f" \\text{{ AS }} {alias}" if style == "latex" else f" AS {alias}"
+            return base
+        children = [expression(child, style) for child in node["children"]]
+        if node["type"] in ("select", "project"):
+            project = node["type"] == "project"
+            text = ", ".join(node["outputColumns"]) if project else format_condition(node["condition"], style)
+            if style == "latex":
+                op = "\\pi" if project else "\\sigma"
+                return f"{op}_{{{text}}}\\left( {children[0]} \\right)"
+            op = ("π" if project else "σ") if style == "unicode" else ("PI" if project else "SIGMA")
+            return f"{op}[{text}]({children[0]})"
+        join = node["type"] == "join"
+        text = format_condition(node.get("condition"), style)
+        if style == "latex":
+            op = f"\\bowtie_{{{text}}}" if join else "\\times"
+            return f"\\left( {children[0]} {op} {children[1]} \\right)"
+        op = ("⋈" if join else "×") if style == "unicode" else ("JOIN" if join else "CROSS")
+        if join:
+            op += f"[{text}]"
+        return f"({children[0]} {op} {children[1]})"
+
+    return {**{style: expression(graph["rootId"], style) for style in ("unicode", "ascii", "latex")},
+            "columns": node_map[graph["rootId"]]["outputColumns"]}
+
+
 def build_algebra(query):
     """Gera representações em texto, Unicode, LaTeX e árvore da álgebra relacional canônica."""
     tables = query["tables"]
