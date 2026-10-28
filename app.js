@@ -575,6 +575,11 @@ function renderGraph() {
       </div>` : ''}
     </div>
   `;
+
+  // Árvore mais larga que o painel (zoom, telas estreitas): começa centralizada na raiz
+  document.querySelectorAll('.tree-viewport').forEach(viewport => {
+    viewport.scrollLeft = (viewport.scrollWidth - viewport.clientWidth) / 2;
+  });
 }
 
 // -----------------------------------------------------------------------------

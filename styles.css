@@ -521,6 +521,10 @@ kbd {
   overflow: hidden;
 }
 
+.telemetry-item:not(:has(+ .telemetry-item)) {
+  border-right: 0;
+}
+
 .metrics:empty {
   display: none;
 }
@@ -703,8 +707,8 @@ kbd {
 
 /* Operadores: cor por significado */
 
-.op-badge-proj { --op: var(--proj); --op-soft: var(--proj-soft); }
-.op-badge-sel { --op: var(--sel); --op-soft: var(--sel-soft); }
+.op-badge-proj, .op-badge-project { --op: var(--proj); --op-soft: var(--proj-soft); }
+.op-badge-sel, .op-badge-select { --op: var(--sel); --op-soft: var(--sel-soft); }
 .op-badge-join { --op: var(--join); --op-soft: var(--join-soft); }
 .op-badge-prod { --op: var(--prod); --op-soft: var(--prod-soft); }
 .op-badge-scan { --op: var(--scan); --op-soft: var(--scan-soft); }
@@ -913,22 +917,25 @@ kbd {
   padding: 10px 6px 24px;
 }
 
+/* A árvore ocupa a largura do seu conteúdo: quando falta espaço (zoom, telas
+   estreitas) o viewport rola em vez de os ramos se sobreporem */
+.tree-viewport > .tree-subtree {
+  width: max-content;
+  min-width: 100%;
+}
+
 .tree-subtree {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 0;
-}
-
-.binary-subtree {
-  width: 100%;
 }
 
 .tree-node-card {
   position: relative;
   display: flex;
   gap: 12px;
-  width: min(260px, 100%);
+  width: 260px;
+  max-width: 100%;
   padding: 10px 12px 10px 10px;
   border: 1px solid var(--rule-strong);
   border-radius: var(--radius);
@@ -1038,8 +1045,8 @@ kbd {
 }
 
 .tree-branches-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(230px, 1fr));
+  display: flex;
+  justify-content: center;
   gap: 20px;
   width: 100%;
   margin-top: 2px;
@@ -1047,9 +1054,10 @@ kbd {
 
 .tree-branch-col {
   display: flex;
+  flex: 1 0 auto;
   flex-direction: column;
   align-items: center;
-  min-width: 0;
+  min-width: 230px;
 }
 
 .branch-label {
@@ -1574,10 +1582,6 @@ kbd {
 
   .telemetry-badge-savings {
     margin: 10px 12px;
-  }
-
-  .tree-branches-grid {
-    grid-template-columns: minmax(230px, 1fr) minmax(230px, 1fr);
   }
 }
 
