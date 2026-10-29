@@ -54,6 +54,8 @@ def algebra_from_graph(graph):
                 base += f" \\text{{ AS }} {alias}" if style == "latex" else f" AS {alias}"
             return base
         children = [expression(child, style) for child in node["children"]]
+        if node["type"] == "limit":
+            return format_limit(children[0], node["limit"], style)
         if node["type"] in ("select", "project"):
             project = node["type"] == "project"
             text = ", ".join(node["outputColumns"]) if project else format_condition(node["condition"], style)
@@ -74,6 +76,13 @@ def algebra_from_graph(graph):
 
     return {**{style: expression(graph["rootId"], style) for style in ("unicode", "ascii", "latex")},
             "columns": node_map[graph["rootId"]]["outputColumns"]}
+
+
+def format_limit(expression, limit, style):
+    """LIMIT é uma extensão da álgebra; envolve a expressão inteira."""
+    if style == "latex":
+        return f"\\operatorname{{LIMIT}}_{{{limit}}}\\left( {expression} \\right)"
+    return f"LIMIT[{limit}]({expression})"
 
 
 def build_algebra(query):
@@ -179,6 +188,13 @@ def build_algebra(query):
         "columns": columns,
         "child": tree_after_select,
     }
+
+    if query.get("limit") is not None:
+        limit = query["limit"]
+        full_unicode = format_limit(full_unicode, limit, "unicode")
+        full_ascii = format_limit(full_ascii, limit, "ascii")
+        full_latex = format_limit(full_latex, limit, "latex")
+        root_tree = {"type": "limit", "symbol": "LIMIT", "limit": limit, "child": root_tree}
 
     return {
         "unicode": full_unicode,

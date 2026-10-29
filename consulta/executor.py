@@ -48,7 +48,7 @@ def eval_condition(condition, row):
     return False
 
 
-def execute_plan(query, graph, plan):
+def execute_plan(query, graph, plan, *, result_multiset=None):
     """Executa o plano canônico de operadores sobre o catálogo didático
     e enriquece o grafo e passos com a contagem real de tuplas intermediárias.
     """
@@ -130,6 +130,16 @@ def execute_plan(query, graph, plan):
     if "project_1" in step_map:
         step_map["project_1"]["rowsProduced"] = len(result_rows)
 
+    # Compara resultados completos sem expô-los na resposta nem reexecutar o plano.
+    if result_multiset is not None:
+        result_multiset.update(map(tuple, result_rows))
+    row_count_before_limit = len(result_rows)
+    if query.get("limit") is not None:
+        limit_node = node_map[graph["rootId"]]
+        result_rows = result_rows[:limit_node["limit"]]
+        limit_node["tuplesCount"] = len(result_rows)
+        step_map[limit_node["id"]]["rowsProduced"] = len(result_rows)
+
     # 5. Atualiza fluxo nas arestas do grafo
     for edge in graph["edges"]:
         source_id = edge["source"]
@@ -139,5 +149,6 @@ def execute_plan(query, graph, plan):
         "columns": proj_keys,
         "rows": result_rows,
         "rowCount": len(result_rows),
+        "rowCountBeforeLimit": row_count_before_limit,
         "hasData": len(result_rows) > 0,
     }

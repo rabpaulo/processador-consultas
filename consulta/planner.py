@@ -4,6 +4,39 @@ from .algebra import format_condition
 from .schema import SCHEMA, SAMPLE_DATA
 
 
+def append_limit(graph, plan, limit, node_id):
+    """Acrescenta LIMIT acima da projeção final, sem alterar operadores anteriores."""
+    if limit is None:
+        return
+    child = next(node for node in graph["nodes"] if node["id"] == graph["rootId"])
+    node = {
+        "id": node_id, "type": "limit", "symbol": "LIMIT", "name": "Limite de Tuplas",
+        "label": f"LIMIT {limit}", "limit": limit, "predicate": None,
+        "details": f"Retorna no máximo {limit} tuplas após a projeção final; sem ordem garantida.",
+        "outputColumns": list(child["outputColumns"]), "children": [child["id"]],
+        "parentId": None, "level": child.get("level", 0) + 1, "tuplesCount": 0,
+    }
+    child["parentId"] = node_id
+    graph["nodes"].append(node)
+    graph["edges"].append({
+        "id": f"edge_{child['id']}_{node_id}", "source": child["id"],
+        "target": node_id, "label": "Tuplas para limitação final", "predicate": None,
+    })
+    graph["rootId"] = node_id
+    previous_step = plan["steps"][-1]
+    previous_step["output"] = f"Relação intermediária R{previous_step['step']}"
+    plan["steps"].append({
+        "step": len(plan["steps"]) + 1, "nodeId": node_id, "operator": "LIMIT",
+        "type": "limit", "name": node["name"], "operation": node["details"],
+        "target": node["label"], "predicate": None, "limit": limit,
+        "input": f"R{previous_step['step']}", "output": "Resultado Final da Consulta",
+        "outputColumns": node["outputColumns"], "rowsProduced": 0,
+        "columnsProduced": len(node["outputColumns"]),
+    })
+    plan["totalSteps"] = len(plan["steps"])
+    plan["rootOperator"] = "LIMIT"
+
+
 def build_plan(query, algebra):
     """Constrói o grafo de operadores da consulta canônica (não otimizada)
     e percorre a árvore para gerar a ordem de execução correspondente.
@@ -148,7 +181,7 @@ def build_plan(query, algebra):
         curr_node = sel_node
         curr_level += 1
 
-    # 4. Projeção (π) na raiz da árvore
+    # 4. Projeção final (π), antes do LIMIT opcional
     proj_id = "project_1"
     proj_node = {
         "id": proj_id,
@@ -287,4 +320,5 @@ def build_plan(query, algebra):
         "leafCount": len(scan_nodes),
     }
 
+    append_limit(graph, plan, query.get("limit"), "limit_1")
     return graph, plan

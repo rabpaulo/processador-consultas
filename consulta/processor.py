@@ -23,9 +23,15 @@ def process_query(sql):
 
     algebra = build_algebra(query)
     graph, plan = build_plan(query, algebra)
-    result = execute_plan(query, graph, plan)
-    optimization = build_optimized_plan(query, algebra, graph, plan)
+    canonical_multiset, optimized_multiset = Counter(), Counter()
+    result = execute_plan(query, graph, plan, result_multiset=canonical_multiset)
+    optimization = build_optimized_plan(query, algebra, graph, plan, result_multiset=optimized_multiset)
     optimization["equivalentResults"] = (
+        result["columns"] == optimization["result"]["columns"]
+        and canonical_multiset == optimized_multiset
+    )
+    optimization["equivalenceBasis"] = "before_limit" if query["limit"] is not None else "result"
+    optimization["equivalentReturnedResults"] = (
         result["columns"] == optimization["result"]["columns"]
         and Counter(map(tuple, result["rows"])) == Counter(map(tuple, optimization["result"]["rows"]))
     )

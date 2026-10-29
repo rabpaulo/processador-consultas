@@ -38,7 +38,7 @@ python server.py --port 3001
 ---
 
 ### Rodando os Testes Unitários no Windows
-Para executar os 39 testes automatizados, incluindo comparações com SQLite em memória:
+Para executar os 55 testes automatizados, incluindo comparações com SQLite em memória:
 
 ```cmd
 .\testar.cmd
@@ -94,6 +94,22 @@ python3 -m unittest discover -s tests -v
 * Álgebra otimizada gerada da árvore executada em Unicode, ASCII e LaTeX, incluindo seleções residuais.
 * Comparação dos resultados por multiconjuntos em cada execução; duplicatas preservadas.
 
+### Complemento: LIMIT (29/10/2026)
+
+`LIMIT N` é opcional ao final do SELECT, após as junções e o WHERE, antes do ponto e vírgula. Aceita inteiros não negativos; `LIMIT 0` retorna uma tabela vazia com as colunas preservadas. Valores negativos, decimais, notação científica, identificadores e cláusulas adicionais são rejeitados.
+
+```sql
+SELECT p.Nome FROM Produto p LIMIT 3;
+SELECT * FROM Pedido LIMIT 0;
+SELECT p.Nome FROM Produto p WHERE p.Preco > 200 LIMIT 5;
+```
+
+O limite aparece acima da projeção final nos dois grafos, como último passo dos planos e como `LIMIT[N](...)` na álgebra (uma extensão da álgebra relacional). Seleções, projeções antecipadas e reordenação de junções da entrega de 27/10 continuam usando as mesmas heurísticas.
+
+Sem `ORDER BY`, os planos podem retornar subconjuntos diferentes. A equivalência compara os **resultados completos antes do limite**, preservando duplicatas e desconsiderando ordem. A API informa `equivalenceBasis: "before_limit"`, `equivalentResults` para essa comparação e `equivalentReturnedResults` para os subconjuntos efetivamente retornados. Cada resultado inclui `rowCount` e `rowCountBeforeLimit`; a interface mostra essas contagens e explica a ausência de ordem garantida. A tabela de resultados exibe o plano canônico.
+
+O motor executa os resultados completos para conferir equivalência; LIMIT não representa uma execução com parada antecipada. As métricas somam as saídas exceto o operador final: quando há LIMIT, a projeção passa a ser intermediária e entra na soma. Sem LIMIT, os cálculos anteriores são preservados.
+
 ## 📂 Estrutura do Projeto
 
 | Arquivo / Pasta | Responsabilidade |
@@ -113,5 +129,5 @@ python3 -m unittest discover -s tests -v
 | `consulta/schema.py` | Leitura do catálogo relacional |
 | `data/catalog.json` | 10 tabelas do BD_Vendas, registros didáticos e exemplos de consulta |
 | `sql/bd-vendas.sql` | DDL MySQL opcional do modelo de banco |
-| `tests/` | 39 testes de unidade/integração; regressões com SQLite e permutações de relações |
+| `tests/` | 55 testes de unidade/integração; LIMIT, regressões com SQLite e permutações de relações |
 | `ENTREGA.md` | Guia detalhado da entrega acadêmica e roteiro de demonstração |

@@ -132,5 +132,26 @@
     </span>
   </footer>
 
+  <dialog id="tree-viewer" class="tree-viewer" aria-labelledby="tree-viewer-title" aria-describedby="tree-viewer-help">
+    <header class="tree-viewer-header">
+      <div>
+        <h2 id="tree-viewer-title">Árvore · visão ampliada</h2>
+        <p id="tree-viewer-help">Use o zoom para ler os nós e as barras de rolagem para explorar a árvore. Esc para fechar.</p>
+      </div>
+      <div class="tree-viewer-controls" role="group" aria-label="Controles da árvore ampliada">
+        <button id="tree-zoom-out" class="btn" type="button" aria-label="Diminuir zoom">−</button>
+        <output id="tree-zoom-value" aria-live="polite" aria-label="Nível de zoom">100%</output>
+        <button id="tree-zoom-in" class="btn" type="button" aria-label="Aumentar zoom">+</button>
+        <button id="tree-zoom-fit" class="btn" type="button">Ajustar árvore</button>
+        <button id="tree-zoom-reset" class="btn" type="button">100%</button>
+        <button id="tree-viewer-close" class="btn" type="button" autofocus aria-label="Fechar árvore ampliada">Fechar ×</button>
+      </div>
+    </header>
+    <div id="tree-viewer-viewport" class="tree-viewer-viewport" tabindex="0" role="region" aria-label="Árvore ampliada com rolagem">
+      <div id="tree-viewer-canvas" class="tree-viewer-canvas">
+        <div id="tree-viewer-content" class="tree-viewer-content"></div>
+      </div>
+    </div>
+  </dialog>
 </body>
 </html>

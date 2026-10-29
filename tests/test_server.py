@@ -61,6 +61,26 @@ class ServerTests(unittest.TestCase):
         self.assertIn("Campo inexistente", error["message"])
         self.assertEqual((error["line"], error["column"], error["position"]), (2, 1, 13))
 
+    def test_limit_api_results_and_validation(self):
+        for limit in (0, 1, 3, 100):
+            with self.subTest(limit=limit):
+                status, _, body = self.request("POST", "/api/process", {"sql": f"SELECT * FROM Pedido LIMIT {limit};"})
+                self.assertEqual(status, 200)
+                result = json.loads(body)
+                self.assertEqual(result["query"]["limit"], limit)
+                for bundle in (result, result["optimization"]):
+                    self.assertLessEqual(bundle["result"]["rowCount"], limit)
+                    self.assertEqual(bundle["plan"]["steps"][-1]["type"], "limit")
+                self.assertTrue(result["optimization"]["equivalentResults"])
+        for value in ("-1", "3.0", "Nome", ""):
+            with self.subTest(value=value):
+                sql = "SELECT * FROM Pedido\nLIMIT " + value
+                status, _, body = self.request("POST", "/api/process", {"sql": sql})
+                self.assertEqual(status, 422)
+                error = json.loads(body)["error"]
+                self.assertIn("LIMIT exige", error["message"])
+                self.assertEqual((error["line"], error["column"]), (2, 7))
+
     def test_error_position_matches_browser_utf16(self):
         sql = "SELECT Nome FROM Produto WHERE Nome = '😀' AND Valor = 1"
         status, _, body = self.request("POST", "/api/process", {"sql": sql})

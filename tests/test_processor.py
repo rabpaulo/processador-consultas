@@ -41,7 +41,7 @@ class ProcessorTests(unittest.TestCase):
                 query(sql)
 
     def test_rejects_unsupported_syntax_with_position(self):
-        cases = ["", "DELETE FROM Produto", "SELECT Nome FROM Produto; DROP TABLE Produto", "SELECT Nome FROM Produto WHERE Preco != 1", "SELECT Nome FROM Produto WHERE Preco > 1 OR Preco < 2", "SELECT Nome FROM Produto WHERE (Preco > 1", "SELECT Nome FROM Produto WHERE Nome = 'ab", "SELECT SUM(Preco) FROM Produto", "SELECT Nome FROM Produto ORDER BY Nome", "SELECT Nome FROM Produto INNER JOIN Categoria", "SELECT Nome, FROM Produto", "SELECT Nome FROM Produto WHERE Preco > 1 AND", "SELECT Nome FROM Produto LIMIT 1"]
+        cases = ["", "DELETE FROM Produto", "SELECT Nome FROM Produto; DROP TABLE Produto", "SELECT Nome FROM Produto WHERE Preco != 1", "SELECT Nome FROM Produto WHERE Preco > 1 OR Preco < 2", "SELECT Nome FROM Produto WHERE (Preco > 1", "SELECT Nome FROM Produto WHERE Nome = 'ab", "SELECT SUM(Preco) FROM Produto", "SELECT Nome FROM Produto ORDER BY Nome", "SELECT Nome FROM Produto INNER JOIN Categoria", "SELECT Nome, FROM Produto", "SELECT Nome FROM Produto WHERE Preco > 1 AND", "SELECT Nome FROM Produto LIMIT"]
         for sql in cases:
             with self.subTest(sql=sql), self.assertRaises(QueryError) as caught:
                 query(sql)

@@ -91,6 +91,7 @@ class Parser:
     """Parser descendente recursivo; AND é associado à esquerda."""
 
     def __init__(self, sql):
+        self.sql = sql
         self.tokens = tokenize(sql)
         self.index = 0
         self.tables = []
@@ -199,10 +200,19 @@ class Parser:
                 self.expect("ON")
                 joins.append({"alias": entry["alias"], "condition": self.condition()})
         where = self.condition() if self.take("WHERE") else None
+        limit = None
+        if self.take("LIMIT"):
+            token = self.current
+            # O lexer normaliza 3.0 e 3e0 para int; valide também a grafia SQL.
+            literal = NUMBER.match(self.sql, token["position"])
+            if token["type"] != "number" or not literal or not re.fullmatch(r"[0-9]+", literal.group()):
+                raise QueryError("LIMIT exige um número inteiro não negativo (ex.: LIMIT 3).", token["position"])
+            limit = token["value"]
+            self.index += 1
         self.take(";")
         if self.current["type"] != "eof":
-            raise QueryError(f"Comando ou trecho não suportado: {self.current['value']}. Use SELECT, FROM, INNER JOIN, WHERE e AND.", self.current["position"])
-        return {"columns": columns, "tables": self.tables, "joins": joins, "where": where, "tokens": self.tokens[:-1]}
+            raise QueryError(f"Comando ou trecho não suportado: {self.current['value']}. Use SELECT, FROM, INNER JOIN, WHERE, AND e LIMIT.", self.current["position"])
+        return {"columns": columns, "tables": self.tables, "joins": joins, "where": where, "limit": limit, "tokens": self.tokens[:-1]}
 
 
 def parse(sql):

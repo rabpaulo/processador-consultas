@@ -2,6 +2,7 @@
 
 from .algebra import format_condition, algebra_from_graph
 from .executor import eval_condition
+from .planner import append_limit
 from .schema import SAMPLE_DATA, SCHEMA
 
 
@@ -130,7 +131,7 @@ def _order_relations(tables, unary_by_alias, predicates):
     return ordered, joins, pending, counts, decisions
 
 
-def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_plan):
+def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_plan, *, result_multiset=None):
     """Aplica as heurísticas de Seleção (Redução de Tuplas) e Projeção (Redução de Atributos)
     gerando o grafo otimizado, plano de execução correspondente e álgebra relacional otimizada.
     """
@@ -429,7 +430,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
         })
         curr_combined = sel_rem_node
 
-    # 7. Projeção Final (Raiz da Árvore Otimizada)
+    # 7. Projeção Final (antes do LIMIT opcional)
     root_proj_id = "opt_project_root"
     root_proj_node = {
         "id": root_proj_id,
@@ -503,6 +504,9 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
         "leafCount": len(leaf_scan_nodes),
     }
 
+    append_limit(optimized_graph, optimized_plan, query.get("limit"), "opt_limit_root")
+    node_map = {node["id"]: node for node in nodes}
+
     # 9. Execução em Memória do Plano Otimizado
     intermediate_data = {}
     step_map = {s["nodeId"]: s for s in steps}
@@ -539,7 +543,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
             attr_keys = node["outputColumns"]
             projected = []
             if node_id == root_proj_id:
-                # Na raiz, gera tuplas no formato tabular final
+                # Na projeção final, gera tuplas no formato tabular
                 for r in child_rows:
                     projected.append([r.get(k) for k in attr_keys])
             else:
@@ -554,6 +558,13 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
             intermediate_data[node_id] = projected
             node["tuplesCount"] = len(projected)
             step["rowsProduced"] = len(projected)
+
+        elif node["type"] == "limit":
+            child_rows = intermediate_data[node["children"][0]]
+            limited = child_rows[:node["limit"]]
+            intermediate_data[node_id] = limited
+            node["tuplesCount"] = len(limited)
+            step["rowsProduced"] = len(limited)
 
         elif node["type"] == "join":
             left_rows = intermediate_data[node["children"][0]]
@@ -577,6 +588,11 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
             node["tuplesCount"] = len(combined)
             step["rowsProduced"] = len(combined)
 
+    full_rows = intermediate_data[root_proj_id]
+    if result_multiset is not None:
+        result_multiset.update(map(tuple, full_rows))
+    result_rows = intermediate_data[optimized_graph["rootId"]]
+
     # Atualiza tuplas nas arestas
     for edge in edges:
         edge["tuplesCount"] = node_map[edge["source"]].get("tuplesCount", 0)
@@ -585,7 +601,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
     optimized_algebra = algebra_from_graph(optimized_graph)
 
     # 11. Cálculo de Métricas Comparativas (Canônico vs Otimizado)
-    # Tuplas intermediárias: soma das tuplas geradas em passos intermediários
+    # Soma das saídas anteriores ao operador final (LIMIT ou projeção).
     canon_steps = canonical_plan["steps"]
     canon_intermediate_tuples = sum(s["rowsProduced"] for s in canon_steps[:-1])
     opt_intermediate_tuples = sum(s["rowsProduced"] for s in steps[:-1])
@@ -646,7 +662,7 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
             },
         },
         "metrics": {
-            "definition": "Soma das saídas de todos os operadores exceto a projeção final, incluindo scans. Células = linhas emitidas × atributos. Não mede RAM nem tempo; operadores adicionais podem aumentar as somas.",
+            "definition": "Soma das saídas de todos os operadores exceto o operador final (LIMIT, quando presente; caso contrário, projeção), incluindo scans. Células = linhas emitidas × atributos. Não mede RAM nem tempo; operadores adicionais podem aumentar as somas.",
             "canonicalIntermediateTuples": canon_intermediate_tuples,
             "optimizedIntermediateTuples": opt_intermediate_tuples,
             "savedTuples": canon_intermediate_tuples - opt_intermediate_tuples,
@@ -661,8 +677,9 @@ def build_optimized_plan(query, canonical_algebra, canonical_graph, canonical_pl
         "algebra": optimized_algebra,
         "result": {
             "columns": proj_keys,
-            "rows": intermediate_data[root_proj_id],
-            "rowCount": len(intermediate_data[root_proj_id]),
-            "hasData": len(intermediate_data[root_proj_id]) > 0,
+            "rows": result_rows,
+            "rowCount": len(result_rows),
+            "rowCountBeforeLimit": len(full_rows),
+            "hasData": len(result_rows) > 0,
         },
     }

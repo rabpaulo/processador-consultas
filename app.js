@@ -10,6 +10,142 @@ let analysis = null, activeTab = 'graph', selectedTable = null, lastSql = '';
 let algebraFormat = 'unicode', algebraMode = 'optimized'; // 'optimized' | 'canonical'
 let graphViewMode = 'optimized'; // 'optimized' | 'canonical' | 'comparison'
 let planViewMode = 'optimized'; // 'optimized' | 'canonical'
+let treeZoom = 1;
+
+function layoutOperatorTrees(scope = document) {
+  scope.querySelectorAll('.operator-tree').forEach(tree => {
+    const cards = new Map([...tree.querySelectorAll('.tree-node-card')].map(card => [card.dataset.nodeId, card]));
+    const heights = [];
+    const gap = 20, padding = 16, levelGap = 42;
+
+    // Contornos por nível: os ramos podem aproveitar o espaço vazio abaixo
+    // de folhas curtas, sem reservar um retângulo para a subárvore inteira.
+    function measure(id, depth) {
+      const card = cards.get(id);
+      const width = card.offsetWidth, height = card.offsetHeight;
+      heights[depth] = Math.max(heights[depth] || 0, height);
+      const children = JSON.parse(card.dataset.children).map(child => measure(child, depth + 1));
+      if (children.length === 2) {
+        let distance = 0;
+        for (let d = 0; d < Math.min(children[0].right.length, children[1].left.length); d++) {
+          distance = Math.max(distance, children[0].right[d] + gap - children[1].left[d]);
+        }
+        children[0].offset = -distance / 2;
+        children[1].offset = distance / 2;
+      } else if (children.length === 1) {
+        children[0].offset = 0;
+      }
+      const left = [-width / 2], right = [width / 2];
+      children.forEach(child => child.left.forEach((value, d) => {
+        left[d + 1] = Math.min(left[d + 1] ?? Infinity, value + child.offset);
+        right[d + 1] = Math.max(right[d + 1] ?? -Infinity, child.right[d] + child.offset);
+      }));
+      return { card, width, height, children, left, right };
+    }
+
+    const root = measure(tree.dataset.rootId, 0);
+    const top = [padding];
+    heights.forEach((height, depth) => { top[depth + 1] = top[depth] + height + levelGap; });
+    const minX = Math.min(...root.left), maxX = Math.max(...root.right);
+    const width = Math.ceil(maxX - minX + padding * 2);
+    const height = top[heights.length - 1] + heights[heights.length - 1] + padding;
+    const edges = [];
+
+    function place(node, x, depth) {
+      const y = top[depth];
+      node.card.style.left = `${x - node.width / 2}px`;
+      node.card.style.top = `${y}px`;
+      node.children.forEach((child, index) => {
+        const childX = x + child.offset, childY = top[depth + 1];
+        const branch = node.children.length === 2 ? (index === 0 ? 'left' : 'right') : 'unary';
+        const label = `${branch === 'left' ? 'Esq. · ' : branch === 'right' ? 'Dir. · ' : ''}${number(child.card.dataset.tuples)} tuplas`;
+        const labelWidth = label.length * 6 + 12;
+        // Cada linha parte do operador e termina no centro superior do filho.
+        edges.push(`<g class="tree-edge tree-edge--${branch}">
+          <path d="M ${x} ${y + node.height} V ${childY - 30} H ${childX} V ${childY}"/>
+          <rect x="${childX - labelWidth / 2}" y="${childY - 24}" width="${labelWidth}" height="17" rx="4"/>
+          <text x="${childX}" y="${childY - 12}">${escape(label)}</text>
+        </g>`);
+        place(child, childX, depth + 1);
+      });
+    }
+
+    place(root, padding - minX, 0);
+    tree.style.width = `${width}px`;
+    tree.style.height = `${height}px`;
+    const svg = tree.querySelector('.tree-edges');
+    svg.setAttribute('width', width);
+    svg.setAttribute('height', height);
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.innerHTML = edges.join('');
+  });
+}
+
+function setTreeZoom(value, resetPosition = false) {
+  const viewport = $('#tree-viewer-viewport');
+  const canvas = $('#tree-viewer-canvas');
+  const content = $('#tree-viewer-content');
+  const oldMargin = Math.max(0, (viewport.clientWidth - canvas.offsetWidth) / 2);
+  const centerX = (viewport.scrollLeft + viewport.clientWidth / 2 - oldMargin) / treeZoom;
+  const centerY = (viewport.scrollTop + viewport.clientHeight / 2) / treeZoom;
+  treeZoom = Math.max(0.1, Math.min(4, value));
+  content.style.transform = `scale(${treeZoom})`;
+  canvas.style.width = `${Math.ceil(content.offsetWidth * treeZoom)}px`;
+  canvas.style.height = `${Math.ceil(content.offsetHeight * treeZoom)}px`;
+  $('#tree-zoom-value').textContent = `${Math.round(treeZoom * 100)}%`;
+  $('#tree-zoom-out').disabled = treeZoom <= 0.1;
+  $('#tree-zoom-in').disabled = treeZoom >= 4;
+  viewport.scrollLeft = resetPosition
+    ? Math.max(0, (canvas.offsetWidth - viewport.clientWidth) / 2)
+    : Math.max(0, centerX * treeZoom - viewport.clientWidth / 2);
+  viewport.scrollTop = resetPosition ? 0 : Math.max(0, centerY * treeZoom - viewport.clientHeight / 2);
+}
+
+function openTreeViewer() {
+  const source = $('#panel .graph-container > .tree-viewport, #panel .graph-container > .side-by-side-trees');
+  if (!source) return;
+  const tree = source.cloneNode(true);
+  // A cópia visual mantém todos os nós sem duplicar IDs na página.
+  tree.removeAttribute('id');
+  tree.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+  $('#tree-viewer-content').replaceChildren(tree);
+  $('#tree-viewer-title').textContent = graphViewMode === 'comparison'
+    ? 'Árvores canônica e otimizada · visão ampliada'
+    : `Árvore ${graphViewMode === 'optimized' ? 'otimizada' : 'canônica'} · visão ampliada`;
+  $('#tree-viewer').showModal();
+  document.documentElement.classList.add('tree-viewer-open');
+  layoutOperatorTrees($('#tree-viewer-content'));
+  setTreeZoom(1, true);
+}
+
+$('#tree-zoom-in').addEventListener('click', () => setTreeZoom(treeZoom + 0.25));
+$('#tree-zoom-out').addEventListener('click', () => setTreeZoom(treeZoom - 0.25));
+$('#tree-zoom-reset').addEventListener('click', () => setTreeZoom(1, true));
+$('#tree-zoom-fit').addEventListener('click', () => {
+  const viewport = $('#tree-viewer-viewport');
+  const content = $('#tree-viewer-content');
+  setTreeZoom(Math.min(
+    viewport.clientWidth / content.offsetWidth,
+    viewport.clientHeight / content.offsetHeight
+  ), true);
+});
+$('#tree-viewer-close').addEventListener('click', () => $('#tree-viewer').close());
+$('#tree-viewer').addEventListener('close', () => {
+  document.documentElement.classList.remove('tree-viewer-open');
+  $('#tree-viewer-content').replaceChildren();
+});
+window.addEventListener('resize', () => {
+  layoutOperatorTrees($('#panel'));
+  if ($('#tree-viewer').open) setTreeZoom(treeZoom);
+});
+// Recalcula as medidas quando a fonte web termina de carregar.
+document.fonts?.ready.then(() => {
+  layoutOperatorTrees($('#panel'));
+  if ($('#tree-viewer').open) {
+    layoutOperatorTrees($('#tree-viewer-content'));
+    setTreeZoom(treeZoom);
+  }
+});
 
 // Navegação do catálogo pela barra lateral
 $('#table-nav').addEventListener('click', event => {
@@ -20,6 +156,10 @@ $('#table-nav').addEventListener('click', event => {
 
 // Delegação de cliques no painel principal
 $('#panel').addEventListener('click', event => {
+  if (event.target.closest('[data-expand-tree]')) {
+    openTreeViewer();
+    return;
+  }
   // Seleção de card no esquema
   const card = event.target.closest('.schema-table-card');
   if (card) {
@@ -282,6 +422,12 @@ function metricChange(saved, percent, unit) {
 }
 
 function equivalenceText() {
+  if (analysis.optimization?.equivalenceBasis === 'before_limit') {
+    const status = analysis.optimization.equivalentResults
+      ? 'Resultados completos canônico e otimizado equivalentes antes do LIMIT, incluindo duplicatas.'
+      : 'Resultados completos divergentes antes do LIMIT: revise os planos.';
+    return `${status} Sem ORDER BY, LIMIT não garante quais linhas serão retornadas; os planos podem retornar subconjuntos diferentes.`;
+  }
   return analysis.optimization?.equivalentResults
     ? 'Resultados canônico e otimizado equivalentes nesta execução, incluindo duplicatas (ordem das linhas desconsiderada).'
     : 'Resultados divergentes: revise os planos antes de apresentar a consulta.';
@@ -374,7 +520,8 @@ function renderGraph() {
     const badgeClass = `op-badge-${node.type}`;
     const hasHeuristic = Boolean(node.heuristic);
     const cardHtml = `
-      <div class="tree-node-card ${node.type === 'scan' ? 'is-leaf' : ''} ${hasHeuristic ? 'has-heuristic' : ''} ${badgeClass}" id="tree-node-${node.id}">
+      <div class="tree-node-card ${node.type === 'scan' ? 'is-leaf' : ''} ${hasHeuristic ? 'has-heuristic' : ''} ${badgeClass}" id="tree-node-${node.id}"
+        data-node-id="${escape(node.id)}" data-children="${escape(JSON.stringify(node.children || []))}" data-tuples="${node.tuplesCount ?? 0}">
         <div class="node-badge-col">
           <span class="node-symbol" title="Operador: ${escape(node.name)}">${escape(node.symbol)}</span>
         </div>
@@ -394,51 +541,14 @@ function renderGraph() {
       </div>
     `;
 
-    if (!node.children || node.children.length === 0) {
-      return `<div class="tree-subtree">${cardHtml}</div>`;
-    }
+    return cardHtml + (node.children || []).map(child => renderTreeBranch(child, graphObj)).join('');
+  }
 
-    if (node.children.length === 1) {
-      const child = nodeMap[node.children[0]];
-      return `
-        <div class="tree-subtree unary-subtree">
-          ${cardHtml}
-          <div class="tree-connector" aria-hidden="true">
-            <span class="connector-line"></span>
-            <span class="connector-telemetry">${number(child?.tuplesCount ?? 0)} tuplas</span>
-            <span class="connector-line"></span>
-          </div>
-          <div class="tree-children single-child">
-            ${renderTreeBranch(node.children[0], graphObj)}
-          </div>
-        </div>
-      `;
-    }
-
-    // Junção binária ou Produto cartesiano (2 ramos)
-    const leftChild = nodeMap[node.children[0]];
-    const rightChild = nodeMap[node.children[1]];
-
-    return `
-      <div class="tree-subtree binary-subtree">
-        ${cardHtml}
-        <div class="tree-connector binary-fork-connector" aria-hidden="true">
-          <span class="connector-line"></span>
-          <span class="connector-telemetry">combinação binária</span>
-          <span class="connector-line"></span>
-        </div>
-        <div class="tree-branches-grid">
-          <div class="tree-branch-col branch-left">
-            <div class="branch-label">Ramo esquerdo · ${number(leftChild?.tuplesCount ?? 0)} tuplas</div>
-            ${renderTreeBranch(node.children[0], graphObj)}
-          </div>
-          <div class="tree-branch-col branch-right">
-            <div class="branch-label">Ramo direito · ${number(rightChild?.tuplesCount ?? 0)} tuplas</div>
-            ${renderTreeBranch(node.children[1], graphObj)}
-          </div>
-        </div>
-      </div>
-    `;
+  function renderTreeGraph(graphObj) {
+    return `<div class="operator-tree" data-root-id="${escape(graphObj.rootId)}">
+      <svg class="tree-edges" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
+      ${renderTreeBranch(graphObj.rootId, graphObj)}
+    </div>`;
   }
 
   // Resumo de heurísticas no topo do grafo
@@ -509,7 +619,7 @@ function renderGraph() {
             <span>${analysis.graph.nodes.length} nós</span>
           </div>
           <div class="tree-viewport">
-            ${renderTreeBranch(analysis.graph.rootId, analysis.graph)}
+            ${renderTreeGraph(analysis.graph)}
           </div>
         </div>
         <div class="tree-column">
@@ -518,7 +628,7 @@ function renderGraph() {
             <span>${opt.graph.nodes.length} nós</span>
           </div>
           <div class="tree-viewport">
-            ${renderTreeBranch(opt.graph.rootId, opt.graph)}
+            ${renderTreeGraph(opt.graph)}
           </div>
         </div>
       </div>
@@ -526,7 +636,7 @@ function renderGraph() {
   } else {
     viewportContent = `
       <div class="tree-viewport" role="region" aria-label="Visualização em árvore do grafo de operadores">
-        ${renderTreeBranch(currentGraph.rootId, currentGraph)}
+        ${renderTreeGraph(currentGraph)}
       </div>
     `;
   }
@@ -555,6 +665,14 @@ function renderGraph() {
           </button>
         </div>
 
+        <button type="button" class="btn tree-expand-btn" data-expand-tree
+          aria-haspopup="dialog" aria-controls="tree-viewer" title="Abrir árvore ampliada">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="10" cy="10" r="7"/><path d="m15 15 6 6M10 6v8M6 10h8"/>
+          </svg>
+          Ampliar árvore
+        </button>
+
         <div class="graph-legend">
           <span class="legend-title">Convenção</span>
           <div class="legend-tags">
@@ -563,6 +681,7 @@ function renderGraph() {
             <span class="legend-tag"><b class="op-badge-join">⋈</b> Junção</span>
             <span class="legend-tag"><b class="op-badge-prod">×</b> Produto cartesiano</span>
             <span class="legend-tag"><b class="op-badge-scan">▤</b> Varredura</span>
+            ${analysis.query.limit !== null ? '<span class="legend-tag"><b class="op-badge-limit">LIMIT</b> Limite final</span>' : ''}
           </div>
         </div>
       </div>
@@ -576,9 +695,11 @@ function renderGraph() {
     </div>
   `;
 
-  // Árvore mais larga que o painel (zoom, telas estreitas): começa centralizada na raiz
+  layoutOperatorTrees($('#panel'));
+  // Árvore mais larga que o painel: começa centralizada no operador raiz.
   document.querySelectorAll('.tree-viewport').forEach(viewport => {
-    viewport.scrollLeft = (viewport.scrollWidth - viewport.clientWidth) / 2;
+    const root = viewport.querySelector('.operator-tree .tree-node-card');
+    viewport.scrollLeft = root ? parseFloat(root.style.left) + root.offsetWidth / 2 - viewport.clientWidth / 2 : 0;
   });
 }
 
@@ -704,6 +825,9 @@ function renderAlgebra() {
     ['Relações base', analysis.query.tables.map(t => `${t.table} AS ${t.alias}`).join(', '), 'Tabelas do catálogo BD_Vendas lidas na base'],
     ['Modo de execução', algebraMode === 'optimized' ? 'Álgebra otimizada (heurísticas 27/10)' : 'Álgebra canônica (não otimizada)', 'Estratégia algébrica de avaliação'],
   ];
+  if (analysis.query.limit !== null) {
+    components.push(['Limite final', `LIMIT ${analysis.query.limit}`, 'Extensão da álgebra aplicada após a projeção final; sem ordem garantida']);
+  }
 
   $('#panel').innerHTML = heading(
     algebraMode === 'optimized' ? 'Álgebra relacional otimizada' : 'Álgebra relacional canônica',
@@ -821,6 +945,16 @@ function renderPlan() {
 // -----------------------------------------------------------------------------
 // Visualização 5: Resultado da Consulta (Dados Avaliados)
 // -----------------------------------------------------------------------------
+function limitResultNote(result) {
+  if (analysis.query.limit === null) return '';
+  const optimizedCount = analysis.optimization.result.rowCount;
+  return `<div class="technical-footnote">
+    <strong>LIMIT ${escape(analysis.query.limit)}:</strong> ${number(result.rowCount)} tuplas retornadas no plano canônico e ${number(optimizedCount)} no otimizado;
+    ${number(result.rowCountBeforeLimit)} tuplas antes do limite no canônico e ${number(analysis.optimization.result.rowCountBeforeLimit)} no otimizado.<br>
+    ${escape(equivalenceText())}
+  </div>`;
+}
+
 function renderResults() {
   const result = analysis.result;
   if (!result || !result.columns) {
@@ -829,16 +963,16 @@ function renderResults() {
   }
 
   if (result.rows.length === 0) {
-    $('#panel').innerHTML = heading('Resultado da consulta', 'Registros obtidos a partir do processamento do plano de consulta.') + `
+    $('#panel').innerHTML = heading('Resultado da consulta · 0 registros', 'Registros obtidos a partir do processamento do plano de consulta.') + limitResultNote(result) + `
       <div class="empty-state">
         <span style="font-size: 28px; display: block; margin-bottom: 8px;">∅</span>
-        Nenhum registro satisfaz o predicado informado sobre a base BD_Vendas de exemplo.
+        ${analysis.query.limit === 0 ? 'LIMIT 0 retorna zero tuplas, mesmo quando há registros que satisfazem a consulta.' : 'Nenhum registro satisfaz o predicado informado sobre a base BD_Vendas de exemplo.'}
       </div>
     `;
     return;
   }
 
-  $('#panel').innerHTML = heading(`Resultado da consulta · ${number(result.rowCount)} registros`, 'Tuplas finais produzidas pela execução do plano sobre o catálogo de exemplo BD_Vendas.') + `
+  $('#panel').innerHTML = heading(`Resultado da consulta · ${number(result.rowCount)} registros`, 'Tuplas finais produzidas pelo plano canônico sobre o catálogo de exemplo BD_Vendas.') + limitResultNote(result) + `
     <div class="results-wrapper">
       <table class="technical-table data-grid">
         <thead>
@@ -866,7 +1000,7 @@ function renderResults() {
       </table>
     </div>
     <div class="technical-footnote">
-      Os dados foram avaliados em memória sobre BD_Vendas. ${escape(equivalenceText())}
+      Os dados foram avaliados em memória sobre BD_Vendas. ${analysis.query.limit === null ? escape(equivalenceText()) : ''}
     </div>
   `;
 }
@@ -899,6 +1033,10 @@ function renderParser() {
             <dt>Integridade do catálogo</dt>
             <dd>Todas as tabelas e atributos existem em BD_Vendas e foram verificados sem ambiguidade.</dd>
           </div>
+          <div>
+            <dt>Limite final (LIMIT)</dt>
+            <dd>${query.limit === null ? 'Sem limite declarado' : `<code>LIMIT ${escape(query.limit)}</code> · aplicado após a projeção final`}</dd>
+          </div>
         </dl>
       </div>
 
@@ -914,7 +1052,7 @@ function renderParser() {
       </div>
     </div>
     <div class="technical-footnote">
-      Gramática reconhecida: SELECT, FROM, INNER JOIN ... ON, WHERE, AND, aliases com ou sem AS, *, parênteses e operadores de comparação (=, &gt;, &lt;, &lt;=, &gt;=, &lt;&gt;).
+      Gramática reconhecida: SELECT, FROM, INNER JOIN ... ON, WHERE, AND, LIMIT N (inteiro não negativo), aliases com ou sem AS, *, parênteses e operadores de comparação (=, &gt;, &lt;, &lt;=, &gt;=, &lt;&gt;).
     </div>
   `;
 }
